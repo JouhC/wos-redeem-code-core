@@ -1,8 +1,0 @@
-#Ignore env
-.env
-
-# Ignore virtual environment
-.venv/
-
-
-*.db
