@@ -22,7 +22,7 @@ RCLONE_CONFIG_PATH = os.getenv("RCLONE_CONFIG_PATH")
 DEFAULT_PLAYER = os.getenv("DEFAULT_PLAYER")
 
 # Check if running in production (Render sets the RENDER environment variable)
-if not os.getenv("RENDER"):
+if not bool(os.getenv("RENDER")):
     init_db()
     login_response, _ = login_player(DEFAULT_PLAYER, SALT)
     add_player(login_response['data'])
