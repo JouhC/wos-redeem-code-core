@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-if not os.getenv("RENDER"): load_dotenv()  # Load .env file in local development
+if not bool(os.getenv("RENDER")): load_dotenv()  # Load .env file in local development
 from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes
