@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 import os
 import praw
 import re
@@ -7,9 +6,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv(override=True)
 
 # Validate environment variables
 CLIENT_ID = os.getenv("CLIENT_ID")
