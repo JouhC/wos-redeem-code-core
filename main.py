@@ -64,7 +64,7 @@ async def root():
 @app.post("/players/")
 async def create_player(player: Player):
     try:
-        login_response, request_data = login_player(player.player_id)
+        login_response, request_data = login_player(player.player_id, SALT)
         add_player(login_response['data'])
         return {"message": f"Player '{player.player_id}' added successfully."}
     except Exception as e:

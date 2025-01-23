@@ -1,0 +1,16 @@
+#Ignore env
+.env
+
+# Ignore virtual environment
+.venv/
+
+
+*.db
+
+*__pycache__/
+
+.gitignore
+
+*.json
+
+test*

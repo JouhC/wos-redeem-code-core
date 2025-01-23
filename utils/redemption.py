@@ -16,9 +16,6 @@ HTTP_HEADER = {
     "Accept": "application/json",
 }
 
-# Secret key for sign generation
-SALT = os.getenv("SALT")
-
 def login_player(player_id, salt):
     """
     Redeem a gift code on Whiteout Survival.
@@ -127,17 +124,3 @@ def redeem_code(player_id, salt, code):
             "message": result,
             "success": success
         }
-
-
-def main():
-    """Main function to test redemption."""
-    # Replace these with actual values for testing
-    player_id = "test_player_id"
-    code = "test_gift_code"
-
-    print(f"Redeeming code '{code}' for player '{player_id}'...")
-    redeem_code(player_id, SALT, code)
-
-
-if __name__ == "__main__":
-    main()
