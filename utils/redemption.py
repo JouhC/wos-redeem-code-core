@@ -1,7 +1,6 @@
 import requests
 import hashlib
 import time
-import os
 import logging
 from db.database import deactivate_giftcode
 

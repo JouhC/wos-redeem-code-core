@@ -1,7 +1,8 @@
 import subprocess
 import os
+from pathlib import Path
 
-DB_FILE = os.getenv("DB_FILE")
+DB_FILE = Path(os.getenv("DB_FILE")).resolve()
 
 def backup_db():
     try:
@@ -22,7 +23,7 @@ def sync_db():
     try:
         # Run `rclone` command to list Google Drive files
         result = subprocess.run(
-            ["rclone", "copy", "remote-gdrive:backup", os.path.abspath(DB_FILE)],
+            ["rclone", "copy", "remote-gdrive:backup", "./db/"],
             capture_output=True,
             text=True
         )

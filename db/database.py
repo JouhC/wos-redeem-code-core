@@ -7,7 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_FILE = os.getenv("DB_FILE")
+DB_FILE = os.path.normpath(os.getenv("DB_FILE"))
 
 def init_db():
     """Initialize the database."""
@@ -71,12 +71,14 @@ def add_player(player_data):
 
 def get_players():
     """Retrieve all subscribed players."""
+    print(DB_FILE)
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM players")
     players = [dict(row) for row in cursor.fetchall()]
     conn.close()
+    logger.info(DB_FILE)
     return players
 
 def add_giftcode(code):

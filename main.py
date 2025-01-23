@@ -30,8 +30,8 @@ else:
     # Save RCLONE_CONFIG content to the default location
     config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
-    with open(config_path, "w") as f:
-        f.write(os.getenv("RCLONE_CONFIG", ""))
+    #with open(config_path, "w") as f:
+    #    f.write(os.getenv("RCLONE_CONFIG", ""))
 
     sync_db()
 
