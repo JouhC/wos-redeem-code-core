@@ -33,9 +33,10 @@ else:
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
         with open(config_path, "w") as f:
             f.write(os.getenv("RCLONE_CONFIG", ""))
+    print("this works")
 
     message = sync_db()
-    print(message)
+    logger.info(message)
 
 # Initialize FastAPI app
 app = FastAPI(
