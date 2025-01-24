@@ -28,12 +28,26 @@ if not bool(os.getenv("RENDER")):
     login_response, _ = login_player(DEFAULT_PLAYER, SALT)
     add_player(login_response['data'])
 else:
+    # Check if the file already exists
     if not os.path.exists(RCLONE_CONFIG_PATH):
-        # Save RCLONE_CONFIG content to the default location
+    # Get the RCLONE_CONFIG from environment variable
+        rclone_config = os.getenv("RCLONE_CONFIG", "")
+
+        if not rclone_config:
+            raise ValueError("RCLONE_CONFIG environment variable is not set or empty!")
+
+        # Save the RCLONE_CONFIG content to the specified path
         config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w") as f:
-            f.write(os.getenv("RCLONE_CONFIG", ""))
+        
+        try:
+            with open(config_path, "w") as f:
+                f.write(rclone_config)
+            print(f"Rclone configuration saved to {config_path}")
+        except Exception as e:
+            print(f"Failed to write Rclone configuration: {e}")
+    else:
+        print(f"Rclone configuration file already exists at {RCLONE_CONFIG_PATH}")
     print("this works")
 
     message = sync_db()
