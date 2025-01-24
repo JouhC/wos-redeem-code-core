@@ -11,6 +11,7 @@ from utils.fetch_giftcodes import fetch_latest_codes
 from utils.redemption import login_player, redeem_code
 from utils.rclone import sync_db
 import logging
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Secret key for sign generation
 SALT = os.getenv("SALT")
-RCLONE_CONFIG_PATH = os.getenv("RCLONE_CONFIG_PATH")
+RCLONE_CONFIG_PATH = Path(os.getenv("RCLONE_CONFIG_PATH")).resolve()
 DEFAULT_PLAYER = os.getenv("DEFAULT_PLAYER")
 
 # Check if running in production (Render sets the RENDER environment variable)
