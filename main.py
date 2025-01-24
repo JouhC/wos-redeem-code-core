@@ -11,6 +11,7 @@ from db.database import (
 from utils.fetch_giftcodes import fetch_latest_codes
 from utils.redemption import login_player, redeem_code
 from utils.rclone import backup_db
+import pandas as pd
 import logging
 
 # Configure logging
@@ -43,10 +44,6 @@ class GiftCodeSetStatusInactive(BaseModel):
 
 class RedemptionRequest(BaseModel):
     player_id: str
-
-class MainLogicRequest(BaseModel):
-    subreddit_name: str
-    keyword: str
 
 @app.get("/")
 async def root():
@@ -115,7 +112,7 @@ async def run_backup_db():
     return {"result": message}
 
 @app.post("/automate-all/")
-async def run_main_logic(request: MainLogicRequest):
+async def run_main_logic():
     """
     Run the main logic:
     - Fetch subscribed players.
@@ -129,11 +126,13 @@ async def run_main_logic(request: MainLogicRequest):
         players = get_players()
         if not players:
             return {"message": "No subscribed players found. Exiting."}
+        
+        players_df = pd.DataFrame(players)
+        players_df = players_df[players_df['redeemed_all'] == 0]
 
-        # Step 2: Fetch new gift codes
-        new_codes = fetch_latest_codes(request.subreddit_name, request.keyword)
-        if not new_codes:
-            return {"message": "No new gift codes found. Exiting."}
+        new_codes = fetch_latest_codes("whiteoutsurvival", "gift code")
+        for code in new_codes:
+            add_giftcode(code)
 
         # Step 3: Merge new gift codes with the database
         for code in new_codes:
@@ -143,7 +142,8 @@ async def run_main_logic(request: MainLogicRequest):
         all_codes = get_giftcodes()
         redemption_results = []
 
-        for player_id in players:
+        for row in players_df.iterrows():
+            player_id = row['fid']
             redeemed_codes = get_redeemed_codes(player_id)
             for code in all_codes:
                 if code not in redeemed_codes:
