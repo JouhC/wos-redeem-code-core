@@ -55,6 +55,8 @@ async def create_player(player: Player):
     try:
         login_response, request_data = login_player(player.player_id, SALT)
         add_player(login_response['data'])
+        message = backup_db()
+        print(message)
         return {"message": f"Player '{player.player_id}' added successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -70,6 +72,8 @@ async def fetch_giftcodes():
     new_codes = fetch_latest_codes("whiteoutsurvival", "gift code")
     for code in new_codes:
         add_giftcode(code)
+    message = backup_db()
+    print(message)
     return {"message": "Gift codes fetched and added to the database.", "codes": new_codes}
 
 @app.get("/giftcodes/")
@@ -99,6 +103,8 @@ async def redeem_giftcode(request: RedemptionRequest):
             if result['success']:
                 record_redemption(request.player_id, code)
         results.append(result)
+    message = backup_db()
+    print(message)
     return {"results": results}
 
 @app.get("/redemptions/{player_id}/")
