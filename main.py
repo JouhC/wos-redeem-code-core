@@ -37,21 +37,20 @@ else:
             raise ValueError("RCLONE_CONFIG environment variable is not set or empty!")
 
         # Save the RCLONE_CONFIG content to the specified path
-        config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        #config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
+        os.makedirs(os.path.dirname(RCLONE_CONFIG_PATH), exist_ok=True)
         
         try:
-            with open(config_path, "w") as f:
+            with open(RCLONE_CONFIG_PATH, "w") as f:
                 f.write(rclone_config)
-            print(f"Rclone configuration saved to {config_path}")
+            print(f"Rclone configuration saved to {RCLONE_CONFIG_PATH}")
         except Exception as e:
             print(f"Failed to write Rclone configuration: {e}")
     else:
         print(f"Rclone configuration file already exists at {RCLONE_CONFIG_PATH}")
-    print("this works")
 
     message = sync_db()
-    logger.info(message)
+    print(message)
 
 # Initialize FastAPI app
 app = FastAPI(
