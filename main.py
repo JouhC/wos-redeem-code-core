@@ -27,11 +27,12 @@ if not bool(os.getenv("RENDER")):
     login_response, _ = login_player(DEFAULT_PLAYER, SALT)
     add_player(login_response['data'])
 else:
-    # Save RCLONE_CONFIG content to the default location
-    config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-    #with open(config_path, "w") as f:
-    #    f.write(os.getenv("RCLONE_CONFIG", ""))
+    if not os.path.exists(RCLONE_CONFIG_PATH):
+        # Save RCLONE_CONFIG content to the default location
+        config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            f.write(os.getenv("RCLONE_CONFIG", ""))
 
     sync_db()
 
