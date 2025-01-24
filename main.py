@@ -34,7 +34,8 @@ else:
         with open(config_path, "w") as f:
             f.write(os.getenv("RCLONE_CONFIG", ""))
 
-    sync_db()
+    message = sync_db()
+    print(message)
 
 # Initialize FastAPI app
 app = FastAPI(
