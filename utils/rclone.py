@@ -8,7 +8,7 @@ def backup_db():
     try:
         # Run `rclone` command to list Google Drive files
         result = subprocess.run(
-            ["rclone", "copy", os.path.abspath(DB_FILE), "remote-gdrive:backup"],
+            ["rclone", "copy", DB_FILE, "remote-gdrive:backup"],
             capture_output=True,
             text=True
         )

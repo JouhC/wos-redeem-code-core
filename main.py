@@ -118,6 +118,11 @@ async def list_redeemed_codes(player_id: str):
     redeemed_codes = get_redeemed_codes(player_id)
     return {"player_id": player_id, "redeemed_codes": redeemed_codes}
 
+@app.post("/backup-db/")
+async def backup_db():
+    message = backup_db()
+    return {"result": message}
+
 @app.post("/automate-all/")
 async def run_main_logic(request: MainLogicRequest):
     """
