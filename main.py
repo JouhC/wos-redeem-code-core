@@ -134,10 +134,6 @@ async def run_main_logic():
         for code in new_codes:
             add_giftcode(code)
 
-        # Step 3: Merge new gift codes with the database
-        for code in new_codes:
-            add_giftcode(code)
-
         # Step 4: Redeem gift codes for each player
         all_codes = get_giftcodes()
         redemption_results = []
