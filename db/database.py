@@ -2,12 +2,13 @@ import sqlite3
 from datetime import datetime
 import os
 import logging
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_FILE = os.path.normpath(os.getenv("DB_FILE"))
+DB_FILE = Path(os.getenv("DB_FILE")).resolve()
 
 def init_db():
     """Initialize the database."""
@@ -75,7 +76,26 @@ def get_players():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM players")
+    # Query to get players with redemption status for active gift codes
+    cursor.execute("""
+                SELECT 
+                    p.id AS player_id,
+                    p.fid,
+                    p.nickname,
+                    p.kid,
+                    p.stove_lv,
+                    p.stove_lv_content,
+                    p.avatar_image,
+                    p.total_recharge_amount,
+                    p.subscribed_date,
+                    CASE WHEN COUNT(g.code) = COUNT(r.code) THEN 1 ELSE 0 END AS redeemed_all
+                FROM players p
+                CROSS JOIN giftcodes g
+                LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
+                WHERE g.status = 'Active'
+                GROUP BY p.id
+            """)
+
     players = [dict(row) for row in cursor.fetchall()]
     conn.close()
     logger.info(DB_FILE)

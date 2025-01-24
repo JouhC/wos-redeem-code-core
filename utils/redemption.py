@@ -100,6 +100,10 @@ def redeem_code(player_id, salt, code):
             print("\nSuccessful redemption!")
             result = f"Player {login_response['data']['nickname']}. Successful redemption for gift code '{code}'!"
             success = True
+        elif err_code == 40005:
+            print("\nAlready claimed redemption!")
+            result = f"Player {login_response['data']['nickname']}. Already claimed redemption for gift code '{code}'!"
+            success = True
         elif err_code == 40004:  # Timeout or retry
             print("\nUnsuccessful redemption. Please retry.")
             result = f"Player {login_response['data']['nickname']}. Unsuccessful redemption for '{code}'. Please retry."
