@@ -1,17 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
-from dotenv import load_dotenv
-if not bool(os.getenv("RENDER")): load_dotenv()  # Load .env file in local development
+if not bool(os.getenv("RENDER")): 
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file in local development
 from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes
 )
 from utils.fetch_giftcodes import fetch_latest_codes
 from utils.redemption import login_player, redeem_code
-from utils.rclone import sync_db
+from utils.rclone import backup_db
 import logging
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 # Secret key for sign generation
 SALT = os.getenv("SALT")
-RCLONE_CONFIG_PATH = Path(os.getenv("RCLONE_CONFIG_PATH")).resolve()
 DEFAULT_PLAYER = os.getenv("DEFAULT_PLAYER")
 
 # Check if running in production (Render sets the RENDER environment variable)
@@ -27,30 +26,6 @@ if not bool(os.getenv("RENDER")):
     init_db()
     login_response, _ = login_player(DEFAULT_PLAYER, SALT)
     add_player(login_response['data'])
-else:
-    # Check if the file already exists
-    if not os.path.exists(RCLONE_CONFIG_PATH):
-    # Get the RCLONE_CONFIG from environment variable
-        rclone_config = os.getenv("RCLONE_CONFIG", "")
-
-        if not rclone_config:
-            raise ValueError("RCLONE_CONFIG environment variable is not set or empty!")
-
-        # Save the RCLONE_CONFIG content to the specified path
-        #config_path = os.path.expanduser(RCLONE_CONFIG_PATH)
-        os.makedirs(os.path.dirname(RCLONE_CONFIG_PATH), exist_ok=True)
-        
-        try:
-            with open(RCLONE_CONFIG_PATH, "w") as f:
-                f.write(rclone_config)
-            print(f"Rclone configuration saved to {RCLONE_CONFIG_PATH}")
-        except Exception as e:
-            print(f"Failed to write Rclone configuration: {e}")
-    else:
-        print(f"Rclone configuration file already exists at {RCLONE_CONFIG_PATH}")
-
-    message = sync_db()
-    print(message)
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -135,7 +110,7 @@ async def list_redeemed_codes(player_id: str):
     return {"player_id": player_id, "redeemed_codes": redeemed_codes}
 
 @app.post("/backup-db/")
-async def backup_db():
+async def run_backup_db():
     message = backup_db()
     return {"result": message}
 
