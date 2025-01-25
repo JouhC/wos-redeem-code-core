@@ -8,7 +8,7 @@ from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes
 )
-from utils.fetch_giftcodes import fetch_latest_codes
+from utils.fetch_gc_async import fetch_latest_codes_async
 from utils.redemption import login_player, redeem_code
 from utils.rclone import backup_db
 import pandas as pd
@@ -69,7 +69,7 @@ async def list_players():
 # Gift code endpoints
 @app.get("/giftcodes/fetch/")
 async def fetch_giftcodes():
-    new_codes = fetch_latest_codes("whiteoutsurvival", "gift code")
+    new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
     for code in new_codes:
         add_giftcode(code)
     message = backup_db()
@@ -136,7 +136,7 @@ async def run_main_logic():
         players_df = pd.DataFrame(players)
         players_df = players_df[players_df['redeemed_all'] == 0]
 
-        new_codes = fetch_latest_codes("whiteoutsurvival", "gift code")
+        new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
         for code in new_codes:
             add_giftcode(code)
 

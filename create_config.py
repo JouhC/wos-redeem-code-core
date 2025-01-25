@@ -1,4 +1,5 @@
 import os
+import pexpect
 from utils.rclone import sync_db
 
 RCLONE_CONFIG_PATH=os.getenv("RCLONE_CONFIG_PATH")
@@ -8,6 +9,33 @@ RCLONE_SCOPE=os.getenv("RCLONE_SCOPE")
 RCLONE_ROOT_FOLDER_ID=os.getenv("RCLONE_ROOT_FOLDER_ID")
 RCLONE_TOKEN=os.getenv("RCLONE_TOKEN")
 RCLONE_TEAM_DRIVE=os.getenv("RCLONE_TEAM_DRIVE")
+RCLONE_PASSWORD=os.getenv("RCLONE_PASSWORD")
+
+def add_rclone_config_password():
+    """Add a configuration password to rclone."""
+    try:
+        # Start the rclone config process
+        child = pexpect.spawn("rclone config", encoding="utf-8")
+
+        # Interact with the rclone config prompts
+        child.expect("e/n/d/r/c/s/q>")
+        child.sendline("s")  # Select 'Set configuration password'
+        child.expect("a/q>")
+        child.sendline("a")  # Select 'Add Password'
+        child.expect("Enter NEW configuration password:")
+        child.sendline("your_password_here")  # Replace with your desired password
+        child.expect("Confirm NEW configuration password:")
+        child.sendline("your_password_here")  # Confirm the password
+        child.expect("c/u/q>")
+        child.sendline("q")  # Quit to main menu
+        child.expect("e/n/d/r/c/s/q>")
+        child.sendline("q")  # Quit the config menu
+
+        print("\nConfiguration password successfully added to rclone.")
+    except pexpect.exceptions.EOF:
+        print("\nFailed to add the configuration password to rclone.")
+    except pexpect.exceptions.ExceptionPexpect as e:
+        print(f"\nAn error occurred: {e}")
 
 def main():
      # Validate required environment variables

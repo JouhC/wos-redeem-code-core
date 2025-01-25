@@ -1,5 +1,6 @@
 #Ignore env
 .env
+.env.prod
 
 # Ignore virtual environment
 .venv/
@@ -13,3 +14,5 @@
 test*
 
 *.db
+
+*.in

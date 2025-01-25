@@ -5,3 +5,4 @@ test.ipynb
 *__pycache__*
 .env.prod
 test.py
+*.in
