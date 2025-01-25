@@ -144,7 +144,7 @@ async def run_main_logic():
         all_codes = get_giftcodes()
         redemption_results = []
 
-        for row in players_df.iterrows():
+        for _, row in players_df.iterrows():
             player_id = row['fid']
             redeemed_codes = get_redeemed_codes(player_id)
             for code in all_codes:

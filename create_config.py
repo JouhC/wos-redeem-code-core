@@ -69,6 +69,7 @@ def main():
         with open(expanded_path, "w") as f:
             f.write(rclone_conf)
         print("rclone config has been created.")
+        add_rclone_config_password()
     else:
         print("rclone config is already configured.")
 
