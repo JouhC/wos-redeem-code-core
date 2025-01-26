@@ -1,0 +1,6 @@
+[{RCLONE_CONFIG_NAME}]
+type = {RCLONE_TYPE}
+scope = {RCLONE_SCOPE}
+root_folder_id = {RCLONE_ROOT_FOLDER_ID}
+token = {RCLONE_TOKEN}
+team_drive = {RCLONE_TEAM_DRIVE}

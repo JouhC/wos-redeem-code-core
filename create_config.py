@@ -23,9 +23,9 @@ def add_rclone_config_password():
         child.expect("a/q>")
         child.sendline("a")  # Select 'Add Password'
         child.expect("Enter NEW configuration password:")
-        child.sendline("your_password_here")  # Replace with your desired password
+        child.sendline(RCLONE_PASSWORD)  # Replace with your desired password
         child.expect("Confirm NEW configuration password:")
-        child.sendline("your_password_here")  # Confirm the password
+        child.sendline(RCLONE_PASSWORD)  # Confirm the password
         child.expect("c/u/q>")
         child.sendline("q")  # Quit to main menu
         child.expect("e/n/d/r/c/s/q>")
@@ -49,14 +49,20 @@ def main():
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
     
 
-    rclone_conf = f"""\
-        [{RCLONE_CONFIG_NAME}]
-        type = {RCLONE_TYPE}
-        scope = {RCLONE_SCOPE}
-        root_folder_id = {RCLONE_ROOT_FOLDER_ID}
-        token = {RCLONE_TOKEN}
-        team_drive = {RCLONE_TEAM_DRIVE}
-        """
+    # Load the configuration template from a .txt file
+    with open('rclone_template.txt', 'r') as file:
+        rclone_conf = file.read()
+    rclone_conf
+
+    # Replace placeholders with environment variables
+    rclone_conf = rclone_conf.format(
+        RCLONE_CONFIG_NAME=RCLONE_CONFIG_NAME,
+        RCLONE_TYPE=RCLONE_TYPE,
+        RCLONE_SCOPE=RCLONE_SCOPE,
+        RCLONE_ROOT_FOLDER_ID=RCLONE_ROOT_FOLDER_ID,
+        RCLONE_TOKEN=RCLONE_TOKEN,
+        RCLONE_TEAM_DRIVE=RCLONE_TEAM_DRIVE
+    )
 
     # Handle the rclone config path
     expanded_path = os.path.expanduser(RCLONE_CONFIG_PATH)
