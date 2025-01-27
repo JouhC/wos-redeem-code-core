@@ -14,6 +14,7 @@ from utils.rclone import backup_db
 import pandas as pd
 import logging
 from time import time
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +58,8 @@ async def log_requests(request: Request, call_next):
     # Log response details
     logger.info(f"Response status: {response.status_code}")
     logger.info(f"Completed in {process_time:.2f}s")
+    completed_time = datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+    logger.info(f"Completed datetime: {completed_time}")
     return response
 
 # Models
