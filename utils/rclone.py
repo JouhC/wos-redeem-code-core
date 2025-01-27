@@ -5,18 +5,23 @@ import pexpect
 
 DB_FILE = Path(os.getenv("DB_FILE")).resolve()
 RCLONE_PASSWORD=os.getenv("RCLONE_PASSWORD")
+RCLONE_CONFIG_NAME=os.getenv("RCLONE_CONFIG_NAME")
 
 def backup_db():
     try:
         # Start the rclone config process
-        child = pexpect.spawn(f"rclone copy {DB_FILE} remote-gdrive:backup", encoding="utf-8")
+        child = pexpect.spawn(f"rclone copy {DB_FILE} {RCLONE_CONFIG_NAME}:backup", encoding="utf-8")
 
         # Interact with the rclone config prompts
-        child.expect("password")
+        child.expect("Enter configuration password:")
         child.sendline(RCLONE_PASSWORD)  # Select 'Set configuration password'
         
-        print("Successfully backup the database to Google Drive.")
-        return child.after   
+        child.expect(pexpect.EOF)
+
+        # Print the output
+        output = child.before
+        print("Successfully backed up the database to Google Drive.")
+        return output
     except pexpect.exceptions.EOF:
         print("Failed to backup the database to Google Drive.")
     except pexpect.exceptions.ExceptionPexpect as e:
@@ -25,14 +30,18 @@ def backup_db():
 def sync_db():
     try:
         # Start the rclone copy process
-        child = pexpect.spawn("rclone copy remote-gdrive:backup ./db/", encoding="utf-8")
+        child = pexpect.spawn(f"rclone copy {RCLONE_CONFIG_NAME}:backup ./db/", encoding="utf-8")
 
         # Interact with the rclone config prompts
-        child.expect("password")
+        child.expect("Enter configuration password:")
         child.sendline(RCLONE_PASSWORD)  # Select 'Set configuration password'
 
-        print("Successfully copied the database from Google Drive.")
-        return child.after   
+        child.expect(pexpect.EOF)
+
+        # Print the output
+        output = child.before
+        print("Successfully synced database!")
+        return output   
     except pexpect.exceptions.EOF:
         print("Failed to copy the database from Google Drive.")
     except pexpect.exceptions.ExceptionPexpect as e:
