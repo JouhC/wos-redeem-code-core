@@ -156,7 +156,8 @@ async def run_main_logic():
                         redemption_results.append({"player_id": player_id, "code": code, "status": "redeemed"})
                     except Exception as e:
                         redemption_results.append({"player_id": player_id, "code": code, "status": f"failed: {str(e)}"})
-
+        message = backup_db()
+        print(message)
         return {
             "message": "Main logic executed successfully.",
             "redemption_results": redemption_results
