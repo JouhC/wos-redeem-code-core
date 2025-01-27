@@ -1,8 +1,8 @@
-import sqlite3
 from datetime import datetime
-import os
-import logging
 from pathlib import Path
+import logging
+import os
+import sqlite3
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -179,3 +179,30 @@ def get_redeemed_codes(player_id):
     redeemed_codes = [row[0] for row in cursor.fetchall()]
     conn.close()
     return redeemed_codes
+
+def update_players_table(player_data_df):
+    """Update players' information from a DataFrame."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        for _, player_data in player_data_df.iterrows():
+            cursor.execute("""
+                UPDATE players
+                SET nickname = :nickname,
+                    kid = :kid,
+                    stove_lv = :stove_lv,
+                    stove_lv_content = :stove_lv_content,
+                    avatar_image = :avatar_image,
+                    total_recharge_amount = :total_recharge_amount
+                WHERE fid = :fid
+            """, player_data.to_dict())
+        conn.commit()
+        logger.info("Players updated successfully.")
+    except sqlite3.IntegrityError as e:
+        logger.error(f"An error occurred: {e}")
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    pass

@@ -6,7 +6,7 @@ if not bool(os.getenv("RENDER")):
     load_dotenv()  # Load .env file in local development
 from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
-    record_redemption, get_redeemed_codes
+    record_redemption, get_redeemed_codes, update_players_table
 )
 from utils.fetch_gc_async import fetch_latest_codes_async
 from utils.redemption import login_player, redeem_code
@@ -189,5 +189,49 @@ async def run_main_logic():
             "message": "Main logic executed successfully.",
             "redemption_results": redemption_results
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/update-players/")
+async def run_main_logic():
+    """
+    Run the Updater Players logic:
+    - Update info of subscribed players.
+    """
+    try:
+        # Step 1: Fetch subscribed players
+        players = get_players()
+        if not players:
+            return {"message": "No subscribed players found. Exiting."}
+
+        players_df = pd.DataFrame(players)
+        players_df = players_df[['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount']]
+
+        updated_players_df = []
+        
+        for _, row in players_df.iterrows():
+            player_id = row['fid']
+            login_response, _ = login_player(player_id, SALT)
+            updated_players_df.append(login_response['data'])
+        
+        updated_players_df = pd.DataFrame(updated_players_df)
+        updated_players_df = updated_players_df[['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount']]
+
+        # Ensure updated_players_df columns match players_df types
+        for column in updated_players_df.columns:
+            updated_players_df[column] = updated_players_df[column].astype(players_df[column].dtype)
+
+        # Compare players_df and updated_players_df
+        comparison_df = players_df.merge(updated_players_df, on=['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'], how='outer', indicator=True)
+        differences_df = comparison_df[comparison_df['_merge'] == 'right_only']
+
+        # Update players
+        update_players_table(differences_df)
+
+        # Finally backup the database
+        backup_db()
+
+        return {"result": "Players updated successfully.", "differences": differences_df.to_dict(orient='records')}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
