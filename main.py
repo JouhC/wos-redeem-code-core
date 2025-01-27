@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import os
 if not bool(os.getenv("RENDER")): 
@@ -13,10 +13,11 @@ from utils.redemption import login_player, redeem_code
 from utils.rclone import backup_db
 import pandas as pd
 import logging
+from time import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("request_logger")
 
 # Secret key for sign generation
 SALT = os.getenv("SALT")
@@ -34,6 +35,29 @@ app = FastAPI(
     description="API for managing players, fetching gift codes, and redeeming them.",
     version="1.0.0"
 )
+
+# Middleware for logging requests and responses
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    # Log incoming request details
+    start_time = time()
+    logger.info(f"Request: {request.method} {request.url}")
+    logger.info(f"Headers: {request.headers}")
+    logger.info(f"Client Host: {request.client.host}")
+    try:
+        body = await request.body()
+        logger.info(f"Body: {body.decode('utf-8')}")
+    except Exception:
+        logger.info("Body: Unable to retrieve")
+
+    # Process the request and calculate response time
+    response = await call_next(request)
+    process_time = time() - start_time
+
+    # Log response details
+    logger.info(f"Response status: {response.status_code}")
+    logger.info(f"Completed in {process_time:.2f}s")
+    return response
 
 # Models
 class Player(BaseModel):
