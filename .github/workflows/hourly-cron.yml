@@ -14,12 +14,6 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Send POST Request to /backup-db/
-      env:
-        API_URL: ${{ secrets.API_URL }}
-      run: |
-        curl -X POST "$API_URL/backup-db/" 
-
     - name: Send POST Request to /automate-all/
       env:
         API_URL: ${{ secrets.API_URL }}
