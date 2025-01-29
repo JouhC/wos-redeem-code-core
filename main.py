@@ -6,7 +6,7 @@ if not bool(os.getenv("RENDER")):
     load_dotenv()  # Load .env file in local development
 from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
-    record_redemption, get_redeemed_codes, update_players_table
+    record_redemption, get_redeemed_codes, update_players_table, update_player
 )
 from utils.fetch_gc_async import fetch_latest_codes_async
 from utils.redemption import login_player, redeem_code
@@ -15,6 +15,7 @@ import pandas as pd
 import logging
 from time import time
 from datetime import datetime
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -77,7 +78,12 @@ async def root():
     return {"message": "Welcome to the Gift Code Redemption API!"}
 
 # Player endpoints
-@app.post("/players/")
+@app.get("/players/list/")
+async def list_players():
+    players = get_players()
+    return {"players": players}
+
+@app.post("/players/create")
 async def create_player(player: Player):
     try:
         login_response, request_data = login_player(player.player_id, SALT)
@@ -88,20 +94,28 @@ async def create_player(player: Player):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/players/")
-async def list_players():
-    players = get_players()
-    return {"players": players}
+@app.post("/players/update/")
+async def update_player_profile(player: Player):
+    try:
+        login_response, request_data = await login_player(player.player_id, SALT)
+        update_player(login_response['data'])
+        message = backup_db()
+        print(message)
+        return {"message": f"Player '{player.player_id}' info updated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Gift code endpoints
 @app.get("/giftcodes/fetch/")
 async def fetch_giftcodes():
-    new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
-    for code in new_codes:
-        add_giftcode(code)
+    fetched_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
+    new_codes = []
+    for code in fetched_codes:
+        new_code = add_giftcode(code)
+        new_codes.append(new_code)
     message = backup_db()
     print(message)
-    return {"message": "Gift codes fetched and added to the database.", "codes": new_codes}
+    return {"message": "Gift codes fetched and added to the database.", "new_codes": new_codes}
 
 @app.get("/giftcodes/")
 async def list_giftcodes():
@@ -187,51 +201,49 @@ async def run_main_logic():
         print(message)
         return {
             "message": "Main logic executed successfully.",
-            "redemption_results": redemption_results
+            "redemption_results": redemption_results,
+            "giftcodes": all_codes,
+            "players": get_players()
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.post("/update-players/")
-async def run_main_logic():
-    """
-    Run the Updater Players logic:
-    - Update info of subscribed players.
-    """
+async def update_players():
+    """Updates the information of subscribed players."""
     try:
-        # Step 1: Fetch subscribed players
         players = get_players()
         if not players:
             return {"message": "No subscribed players found. Exiting."}
 
-        players_df = pd.DataFrame(players)
-        players_df = players_df[['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount']]
+        players_df = pd.DataFrame(players, columns=[
+            'fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'
+        ]).head(10)
 
-        updated_players_df = []
-        
-        for _, row in players_df.iterrows():
-            player_id = row['fid']
-            login_response, _ = login_player(player_id, SALT)
-            updated_players_df.append(login_response['data'])
-        
-        updated_players_df = pd.DataFrame(updated_players_df)
-        updated_players_df = updated_players_df[['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount']]
+        # Perform concurrent API requests for player login
+        tasks = [login_player(row['fid'], SALT) for _, row in players_df.iterrows()]
+        updated_players_data = await asyncio.gather(*tasks)
+        updated_players_data = [data for data in updated_players_data if data]
 
-        # Ensure updated_players_df columns match players_df types
-        for column in updated_players_df.columns:
-            updated_players_df[column] = updated_players_df[column].astype(players_df[column].dtype)
+        if not updated_players_data:
+            return {"message": "No updates found."}
 
-        # Compare players_df and updated_players_df
-        comparison_df = players_df.merge(updated_players_df, on=['fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'], how='outer', indicator=True)
-        differences_df = comparison_df[comparison_df['_merge'] == 'right_only']
+        updated_players_df = pd.DataFrame(updated_players_data)
+        updated_players_df = updated_players_df.astype(players_df.dtypes.to_dict())
 
-        # Update players
-        update_players_table(differences_df)
+        # Find differences
+        comparison_df = players_df.merge(updated_players_df, on=[
+            'fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'
+        ], how='outer', indicator=True)
 
-        # Finally backup the database
+        differences_df = comparison_df[comparison_df['_merge'] == 'right_only'].drop(columns=['_merge'])
+
+        if not differences_df.empty:
+            update_players_table(differences_df)
+
         backup_db()
 
         return {"result": "Players updated successfully.", "differences": differences_df.to_dict(orient='records')}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error updating players: {str(e)}")

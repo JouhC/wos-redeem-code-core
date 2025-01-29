@@ -70,6 +70,29 @@ def add_player(player_data):
     finally:
         conn.close()
 
+def update_player(player_data):
+    """Update a player to the database."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE players
+            SET nickname = :nickname,
+                kid = :kid,
+                stove_lv = :stove_lv,
+                stove_lv_content = :stove_lv_content,
+                avatar_image = :avatar_image,
+                total_recharge_amount = :total_recharge_amount
+            WHERE fid = :fid
+        """, {**player_data})
+        conn.commit()
+        print(f"Player '{player_data['fid']}' info updated successfully.")
+    except sqlite3.IntegrityError:
+        print(f"Player '{player_data['fid']}' info failed to update.")
+    finally:
+        conn.close()
+
 def get_players():
     """Retrieve all subscribed players."""
     print(DB_FILE)
