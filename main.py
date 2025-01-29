@@ -112,9 +112,10 @@ async def fetch_giftcodes():
     new_codes = []
     for code in fetched_codes:
         new_code = add_giftcode(code)
-        new_codes.append(new_code)
+        if new_code is not None:
+            new_codes.append(new_code)
     message = backup_db()
-    print(message)
+    print({"message": "Gift codes fetched and added to the database.", "new_codes": new_codes})
     return {"message": "Gift codes fetched and added to the database.", "new_codes": new_codes}
 
 @app.get("/giftcodes/")

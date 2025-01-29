@@ -138,8 +138,10 @@ def add_giftcode(code):
         print(f"Gift code '{code}' added successfully.")
     except sqlite3.IntegrityError:
         print(f"Gift code '{code}' already exists.")
+        code = None
     finally:
         conn.close()
+        return code
 
 def get_giftcodes():
     """Retrieve all gift codes."""
