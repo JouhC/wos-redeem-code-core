@@ -31,6 +31,7 @@ if not bool(os.getenv("RENDER")):
         player_api = PlayerAPI()
         login_response = await player_api.login_player(DEFAULT_PLAYER, SALT)
         add_player(login_response['token'])
+        await player_api.close_session()
 
     import asyncio
     asyncio.run(init_default_player())
@@ -98,6 +99,8 @@ async def create_player(player: Player):
         return {"message": f"Player '{player.player_id}' added successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await player_api.close_session()
 
 @app.post("/players/update/")
 async def update_player_profile(player: Player):
@@ -110,6 +113,8 @@ async def update_player_profile(player: Player):
         return {"message": f"Player '{player.player_id}' info updated successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await player_api.close_session()
 
 # Gift code endpoints
 @app.get("/giftcodes/fetch/")
@@ -133,29 +138,55 @@ async def list_giftcodes():
 async def set_inactive(code: GiftCodeSetStatusInactive):
     try:
         message = deactivate_giftcode(code.code)
+        backup_db()
         return {"message": f"{message}"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+@app.post("/giftcodes/expired-check/")
+async def expired_codes():
+    try:
+        player_api = PlayerAPI()
+        login_response = await player_api.login_player(DEFAULT_PLAYER, SALT)
+        expired = []
+        if login_response:
+            for code in get_giftcodes():
+                result = await player_api.redeem_code(DEFAULT_PLAYER, SALT, code)
+                if result['expired']:
+                    expired.append(code)
+                    deactivate_giftcode(code)
+        backup_db()
+        return {"message": "Gift codes are updated with expired status.", "expired_codes": expired, "active_codes": get_giftcodes()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await player_api.close_session()
 
 # Redemption endpoints
 @app.post("/redeem/")
 async def redeem_giftcode(request: RedemptionRequest):
-    results = []
-    codes = get_giftcodes()
-    player_api = PlayerAPI()
-    for code in codes:
-        redeemed_codes = get_redeemed_codes(request.player_id)
-        if code in redeemed_codes:
-            result = {"message": f"Code '{code}' already redeemed for player '{request.player_id}'."}
-        else:
-            login_response = await player_api.login_player(request.player_id, SALT)
-            result = await player_api.redeem_code(request.player_id, SALT, code)
-            if result['success']:
-                record_redemption(request.player_id, code)
-        results.append(result)
-    message = backup_db()
-    print(message)
-    return {"results": results}
+    try:
+        results = []
+        codes = get_giftcodes()
+        player_api = PlayerAPI()
+        for code in codes:
+            redeemed_codes = get_redeemed_codes(request.player_id)
+            if code in redeemed_codes:
+                result = {"message": f"Code '{code}' already redeemed for player '{request.player_id}'."}
+            else:
+                login_response = await player_api.login_player(request.player_id, SALT)
+                result = await player_api.redeem_code(request.player_id, SALT, code)
+                if result['success']:
+                    record_redemption(request.player_id, code)
+            results.append(result)
+        message = backup_db()
+        print(message)
+        return {"results": results}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await player_api.close_session()
 
 @app.get("/redemptions/{player_id}/")
 async def list_redeemed_codes(player_id: str):
@@ -186,6 +217,7 @@ async def update_players():
             update_players_table(results)
             print(f"{len(results)} players updated.")
 
+        backup_db()
         return get_players()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -231,10 +263,16 @@ async def run_main_logic():
 
         for player in player_tokens:
             update_player(player)
-
+        
+        expired = []
         for result in redeem_results:
             if result['success']:
                 record_redemption(result['player_id'], result['code'])
+            elif result['expired']:
+                if result['code'] in expired:
+                    continue
+                deactivate_giftcode(result['code'])
+                expired.append(result['code'])
             else:
                 print(f"Redemption failed for player {result['player_id']} with code {result['code']}")
 
