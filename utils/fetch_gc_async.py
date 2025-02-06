@@ -33,20 +33,20 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
         list: A list of extracted codes.
     """
     try:
-        reddit = asyncpraw.Reddit(
+        async with asyncpraw.Reddit(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             user_agent=USER_AGENT
-        )
-        subreddit = await reddit.subreddit(subreddit_name)
-        codes = []
-        async for submission in subreddit.search(query=keyword.lower(), time_filter='month'):
-            if submission.is_self:
-                code = extract_code(submission.selftext)
-                if code:
-                    codes.append(code)
+        ) as reddit:  # Ensures proper closing
+            subreddit = await reddit.subreddit(subreddit_name)
+            codes = []
+            async for submission in subreddit.search(query=keyword.lower(), time_filter='month'):
+                if submission.is_self:
+                    code = extract_code(submission.selftext)
+                    if code:
+                        codes.append(code)
 
-        return codes
+            return codes
     except Exception as e:
         logger.error("Error fetching codes: %s", e)
         return []

@@ -6,16 +6,15 @@ if not bool(os.getenv("RENDER")):
     load_dotenv()  # Load .env file in local development
 from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
-    record_redemption, get_redeemed_codes, update_players_table, update_player
+    record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list
 )
 from utils.fetch_gc_async import fetch_latest_codes_async
-from utils.redemption import login_player, redeem_code
 from utils.rclone import backup_db
+from utils.wos_api import PlayerAPI, process_redemption_batches, process_logins_batches
 import pandas as pd
 import logging
 from time import time
 from datetime import datetime
-import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,9 +26,14 @@ DEFAULT_PLAYER = os.getenv("DEFAULT_PLAYER")
 
 # Check if running in production (Render sets the RENDER environment variable)
 if not bool(os.getenv("RENDER")):
-    init_db()
-    login_response, _ = login_player(DEFAULT_PLAYER, SALT)
-    add_player(login_response['data'])
+    async def init_default_player():
+        init_db()
+        player_api = PlayerAPI()
+        login_response = await player_api.login_player(DEFAULT_PLAYER, SALT)
+        add_player(login_response['token'])
+
+    import asyncio
+    asyncio.run(init_default_player())
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -86,8 +90,9 @@ async def list_players():
 @app.post("/players/create")
 async def create_player(player: Player):
     try:
-        login_response, request_data = login_player(player.player_id, SALT)
-        add_player(login_response['data'])
+        player_api = PlayerAPI()
+        login_response = await player_api.login_player(player.player_id, SALT)
+        add_player(login_response['token'])
         message = backup_db()
         print(message)
         return {"message": f"Player '{player.player_id}' added successfully."}
@@ -97,8 +102,9 @@ async def create_player(player: Player):
 @app.post("/players/update/")
 async def update_player_profile(player: Player):
     try:
-        login_response, request_data = await login_player(player.player_id, SALT)
-        update_player(login_response['data'])
+        player_api = PlayerAPI()
+        login_response = await player_api.login_player(player.player_id, SALT)
+        update_player(login_response['token'])
         message = backup_db()
         print(message)
         return {"message": f"Player '{player.player_id}' info updated successfully."}
@@ -136,12 +142,14 @@ async def set_inactive(code: GiftCodeSetStatusInactive):
 async def redeem_giftcode(request: RedemptionRequest):
     results = []
     codes = get_giftcodes()
+    player_api = PlayerAPI()
     for code in codes:
         redeemed_codes = get_redeemed_codes(request.player_id)
         if code in redeemed_codes:
             result = {"message": f"Code '{code}' already redeemed for player '{request.player_id}'."}
         else:
-            result = redeem_code(request.player_id, SALT, code)
+            login_response = await player_api.login_player(request.player_id, SALT)
+            result = await player_api.redeem_code(request.player_id, SALT, code)
             if result['success']:
                 record_redemption(request.player_id, code)
         results.append(result)
@@ -159,6 +167,29 @@ async def run_backup_db():
     message = backup_db()
     return {"result": message}
 
+@app.post("/update-players/")
+async def update_players():
+    try:
+        players = get_players()
+        if not players:
+            return {"message": "No subscribed players found. Exiting.", "players": []}  # Return empty list
+        
+        player_ids = []
+        for player in players:
+            player_ids.append(player['fid'])
+
+        results = await process_logins_batches(player_ids, SALT)
+
+        if results == []:
+            print("No players updated.")
+        else:
+            update_players_table(results)
+            print(f"{len(results)} players updated.")
+
+        return get_players()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/automate-all/")
 async def run_main_logic():
     """
@@ -172,79 +203,47 @@ async def run_main_logic():
     try:
         # Step 1: Fetch subscribed players
         players = get_players()
+        
         if not players:
             return {"message": "No subscribed players found. Exiting."}
-        
-        players_df = pd.DataFrame(players)
-        players_df = players_df[players_df['redeemed_all'] == 0]
+
+        player_ids = []
+        for player in players:
+            player_ids.append(player['fid'])
 
         new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
         for code in new_codes:
             add_giftcode(code)
-
-        # Step 4: Redeem gift codes for each player
+        
         all_codes = get_giftcodes()
-        redemption_results = []
+        
+        unredeemed_data = get_unredeemed_code_player_list()
+        if unredeemed_data == []:
+            return {
+                "message": "No unredeemed codes found. Exiting.",
+                "giftcodes": all_codes,
+                "players": players}
+        
+        unredeemed_data = pd.DataFrame(get_unredeemed_code_player_list())
 
-        for _, row in players_df.iterrows():
-            player_id = row['fid']
-            redeemed_codes = get_redeemed_codes(player_id)
-            for code in all_codes:
-                if code not in redeemed_codes:
-                    try:
-                        # Attempt to redeem the code
-                        redeem_code(player_id, SALT, code)
-                        record_redemption(player_id, code)
-                        redemption_results.append({"player_id": player_id, "code": code, "status": "redeemed"})
-                    except Exception as e:
-                        redemption_results.append({"player_id": player_id, "code": code, "status": f"failed: {str(e)}"})
+        # Process players in batches (max 30 per batch per code)
+        player_tokens, redeem_results = await process_redemption_batches(unredeemed_data, SALT)
+
+        for player in player_tokens:
+            update_player(player)
+
+        for result in redeem_results:
+            if result['success']:
+                record_redemption(result['player_id'], result['code'])
+            else:
+                print(f"Redemption failed for player {result['player_id']} with code {result['code']}")
+
         message = backup_db()
         print(message)
         return {
             "message": "Main logic executed successfully.",
-            "redemption_results": redemption_results,
             "giftcodes": all_codes,
             "players": get_players()
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/update-players/")
-async def update_players():
-    """Updates the information of subscribed players."""
-    try:
-        players = get_players()
-        if not players:
-            return {"message": "No subscribed players found. Exiting."}
-
-        players_df = pd.DataFrame(players, columns=[
-            'fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'
-        ]).head(10)
-
-        # Perform concurrent API requests for player login
-        tasks = [login_player(row['fid'], SALT) for _, row in players_df.iterrows()]
-        updated_players_data = await asyncio.gather(*tasks)
-        updated_players_data = [data for data in updated_players_data if data]
-
-        if not updated_players_data:
-            return {"message": "No updates found."}
-
-        updated_players_df = pd.DataFrame(updated_players_data)
-        updated_players_df = updated_players_df.astype(players_df.dtypes.to_dict())
-
-        # Find differences
-        comparison_df = players_df.merge(updated_players_df, on=[
-            'fid', 'nickname', 'kid', 'stove_lv', 'stove_lv_content', 'avatar_image', 'total_recharge_amount'
-        ], how='outer', indicator=True)
-
-        differences_df = comparison_df[comparison_df['_merge'] == 'right_only'].drop(columns=['_merge'])
-
-        if not differences_df.empty:
-            update_players_table(differences_df)
-
-        backup_db()
-
-        return {"result": "Players updated successfully.", "differences": differences_df.to_dict(orient='records')}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating players: {str(e)}")

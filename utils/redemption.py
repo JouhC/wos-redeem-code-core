@@ -14,11 +14,13 @@ logger = logging.getLogger(__name__)
 # Redemption API endpoint
 URL = "https://wos-giftcode-api.centurygame.com/api"
 HTTP_HEADER = {
-    "Content-Type": "application/x-www-form-urlencoded",
+    "Content-Type": "application/json",
     "Accept": "application/json",
 }
+SEMAPHORE = asyncio.Semaphore(30)  # Limit concurrent requests to 30
 
-async def login_player(player_id, salt):
+
+async def login_player2(player_id, salt):
     """Logs in a player and returns their details."""
     max_retries = 5
     async with aiohttp.ClientSession() as session:
@@ -51,8 +53,51 @@ async def login_player(player_id, salt):
 
     return None
 
+async def login_player(player_id, salt):
+    """Logs in a player and returns their details."""
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with SEMAPHORE:  # Enforce concurrency limit
+                request_data = {
+                    "fid": player_id,
+                    "time": int(time.time() * 1000)  # Convert to milliseconds
+                }
+                request_data["sign"] = hashlib.md5(
+                    f"fid={request_data['fid']}&time={request_data['time']}{salt}".encode("utf-8")
+                ).hexdigest()
 
-def redeem_code(player_id, salt, code):
+                async with session.post(f"{URL}/player", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
+                    response.raise_for_status()
+                    login_response = await response.json()
+
+                    if login_response.get("msg") != "success":
+                        print(f"Login failed for player: {player_id}")
+                        return None
+
+                    return login_response.get("data", {})
+
+        except aiohttp.ClientError as e:
+            print(f"Network error for player {player_id}: {e}")
+        except Exception as e:
+            print(f"Unexpected error for player {player_id}: {e}")
+
+    return None
+
+async def login_players_in_batches(player_ids, salt):
+    """Logs in players in controlled concurrent batches."""
+    tasks = []
+    for i, player_id in enumerate(player_ids):
+        tasks.append(login_player(player_id, salt))
+
+        # Rate limit: Wait every 30 requests
+        if (i + 1) % 30 == 0:
+            print("Pausing to respect rate limit...")
+            await asyncio.sleep(60)  # Enforce the 30 requests per minute limit
+
+    results = await asyncio.gather(*tasks)
+    return results
+
+async def redeem_code(player_id, salt, code):
     """
     Redeem a gift code on Whiteout Survival.
 
@@ -69,8 +114,17 @@ def redeem_code(player_id, salt, code):
 
     for attempt in range(max_retries):
         try:
-            login_response, request_data = login_player(player_id, salt)
+            login_response = await login_player(player_id, salt)
 
+            if login_response is None:
+                print(f"Failed to login player {player_id}")
+                break
+
+            request_data = {
+                        "fid": player_id,
+                        "time": int(time.time() * 1000)  # Convert to milliseconds
+                    }
+            
             # Update request data with the gift code
             request_data["cdk"] = code
             request_data["sign"] = hashlib.md5(

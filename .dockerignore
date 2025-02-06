@@ -13,6 +13,18 @@
 
 test*
 
-*.db
 
 *.in
+
+
+# Ignore SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Ignore database backups
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal

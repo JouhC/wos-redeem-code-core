@@ -26,7 +26,7 @@ def init_db():
             stove_lv_content INTEGER NOT NULL,
             avatar_image TEXT NOT NULL,
             total_recharge_amount INTEGER NOT NULL,
-            subscribed_date TEXT
+            subscribed_date TEXT        
         )
     """)
 
@@ -205,13 +205,13 @@ def get_redeemed_codes(player_id):
     conn.close()
     return redeemed_codes
 
-def update_players_table(player_data_df):
+def update_players_table(player_data_list):
     """Update players' information from a DataFrame."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
     try:
-        for _, player_data in player_data_df.iterrows():
+        for player_data in player_data_list:
             cursor.execute("""
                 UPDATE players
                 SET nickname = :nickname,
@@ -221,13 +221,29 @@ def update_players_table(player_data_df):
                     avatar_image = :avatar_image,
                     total_recharge_amount = :total_recharge_amount
                 WHERE fid = :fid
-            """, player_data.to_dict())
+            """, player_data)
         conn.commit()
         logger.info("Players updated successfully.")
     except sqlite3.IntegrityError as e:
         logger.error(f"An error occurred: {e}")
     finally:
         conn.close()
+
+def get_unredeemed_code_player_list():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
+    cursor = conn.cursor()
+    # Query to get players who have not redeemed a gift code yet
+    cursor.execute("""
+        SELECT p.fid, g.code
+        FROM players p
+        CROSS JOIN giftcodes g
+        LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
+        WHERE r.code IS NULL AND g.status = 'Active'
+    """)
+    unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return unredeemed_codes_players
 
 if __name__ == "__main__":
     pass
