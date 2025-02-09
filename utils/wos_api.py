@@ -156,7 +156,7 @@ async def process_logins_batches(players_list, salt, batch_size=30):
         await player_api.close_session()  # Close session when done
         return player_tokens
 
-async def process_redemption_batches(unredeemed_data, salt, batch_size=30):
+async def process_redemption_batches(unredeemed_data, salt, update_progress, batch_size=30):
     player_api = PlayerAPI()
 
     def batch_iterator(df, batch_size):
@@ -169,19 +169,16 @@ async def process_redemption_batches(unredeemed_data, salt, batch_size=30):
 
     redeem_results = []
     try:
+        total_batches = len(unredeemed_data) // batch_size + (1 if len(unredeemed_data) % batch_size else 0)
+        progress_multiplier = 50 // total_batches
+
         for i, batch in enumerate(batch_iterator(unredeemed_data, batch_size)):
             # Process players in batches (max 30 per batch per code)
-            login_tasks = [player_api.login_player(row.fid, salt) for row in batch.itertuples(index=False)]
+            player_ids = batch['fid'].unique()
+            login_tasks = [player_api.login_player(player_id, salt) for player_id in player_ids]
             login_results = await asyncio.gather(*login_tasks, return_exceptions=True)
 
-            update_list = []
-            player_tokens = []
-            for login in login_results:
-                if login and 'token' in login:
-                    if login['token']['fid'] in update_list:
-                        continue
-                    player_tokens.append(login['token'])
-                    update_list.append(login['token']['fid'])
+            player_tokens = [login['token'] for login in login_results if login and 'token' in login]
 
             redeem_tasks = []
             for row, login_result in zip(batch.itertuples(index=False), login_results):
@@ -194,7 +191,9 @@ async def process_redemption_batches(unredeemed_data, salt, batch_size=30):
             if redeem_tasks:
                 batch_results = await asyncio.gather(*redeem_tasks, return_exceptions=True)
                 redeem_results.extend(batch_results)
-            
+
+            update_progress(int(progress_multiplier * (i + 1)))
+
             if i < len(unredeemed_data) // batch_size:
                 print(f"Batch {i + 1} processed. Waiting before next batch...")
                 await asyncio.sleep(60)  # Wait before processing the next batch

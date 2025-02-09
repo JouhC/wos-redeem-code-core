@@ -15,6 +15,8 @@ import pandas as pd
 import logging
 from time import time
 from datetime import datetime
+import uuid
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +35,6 @@ if not bool(os.getenv("RENDER")):
         add_player(login_response['token'])
         await player_api.close_session()
 
-    import asyncio
     asyncio.run(init_default_player())
 
 # Initialize FastAPI app
@@ -42,6 +43,9 @@ app = FastAPI(
     description="API for managing players, fetching gift codes, and redeeming them.",
     version="1.0.0"
 )
+
+# Task tracking dictionary
+task_results = {}
 
 # Middleware for logging requests and responses
 @app.middleware("http")
@@ -222,66 +226,89 @@ async def update_players():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/automate-all/")
-async def run_main_logic():
-    """
-    Run the main logic:
-    - Fetch subscribed players.
-    - Fetch new gift codes from the subreddit.
-    - Merge new codes with the database.
-    - Redeem codes for players.
-    - Update the database with redemptions.
-    """
+async def run_automate_all(task_id: str, salt: str):
     try:
+
+        def update_progress(progress: int):
+            task_results[task_id]["progress"] += progress
+
         # Step 1: Fetch subscribed players
+        task_results[task_id] = {"status": "Processing", "progress": 0}
         players = get_players()
-        
         if not players:
-            return {"message": "No subscribed players found. Exiting."}
+            task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No subscribed players found. Exiting."}
+            return
+        update_progress(10)
 
-        player_ids = []
-        for player in players:
-            player_ids.append(player['fid'])
-
+        # Step 2: Fetch new gift codes
         new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
         for code in new_codes:
             add_giftcode(code)
-        
         all_codes = get_giftcodes()
-        
+        update_progress(10)
+
+        # Step 3: Get unredeemed codes
         unredeemed_data = get_unredeemed_code_player_list()
-        if unredeemed_data == []:
-            return {
+        if not unredeemed_data:
+            task_results[task_id] = {
+                "status": "Completed",
+                "progress": 100,
                 "message": "No unredeemed codes found. Exiting.",
                 "giftcodes": all_codes,
-                "players": players}
-        
-        unredeemed_data = pd.DataFrame(get_unredeemed_code_player_list())
+                "players": players
+            }
+            return
+        update_progress(10)
 
-        # Process players in batches (max 30 per batch per code)
-        player_tokens, redeem_results = await process_redemption_batches(unredeemed_data, SALT)
+        # Step 4: Convert to DataFrame and process redemptions
+        unredeemed_df = pd.DataFrame(unredeemed_data)
+        player_tokens, redeem_results = await process_redemption_batches(unredeemed_df, salt, update_progress)
 
         for player in player_tokens:
             update_player(player)
-        
+        update_progress(50)
+
         expired = []
         for result in redeem_results:
             if result['success']:
                 record_redemption(result['player_id'], result['code'])
             elif result['expired']:
-                if result['code'] in expired:
-                    continue
-                deactivate_giftcode(result['code'])
-                expired.append(result['code'])
-            else:
-                print(f"Redemption failed for player {result['player_id']} with code {result['code']}")
+                if result['code'] not in expired:
+                    deactivate_giftcode(result['code'])
+                    expired.append(result['code'])
+        update_progress(10)
 
-        message = backup_db()
-        print(message)
-        return {
+        # Step 5: Backup database
+        backup_db()
+
+        # Store task result
+        task_results[task_id] = {
+            "status": "Completed",
+            "progress": 100,
             "message": "Main logic executed successfully.",
             "giftcodes": all_codes,
             "players": get_players()
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        task_results[task_id] = {"status": "Failed", "progress": 100, "error": str(e)}
+
+@app.post("/automate-all/")
+async def automate_all():
+    """
+    Starts the automate-all process and returns a task ID.
+    The client should poll `/task_status/{task_id}` to get updates.
+    """
+    task_id = str(uuid.uuid4())
+    task_results[task_id] = {"status": "Processing", "progress": 0}
+
+    # Run automation logic asynchronously in the background
+    asyncio.create_task(run_automate_all(task_id, salt=os.getenv("SALT")))
+
+    return {"task_id": task_id, "status": "Processing", "progress": 0}
+
+@app.get("/task_status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Checks the status of an asynchronous task, including progress.
+    """
+    return task_results.get(task_id, {"status": "Not Found", "progress": 0})
