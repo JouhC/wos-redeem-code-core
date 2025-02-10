@@ -202,7 +202,7 @@ async def process_redemption_batches(unredeemed_data, salt, update_progress, bat
                 batch_results = await asyncio.gather(*redeem_tasks, return_exceptions=True)
                 redeem_results.extend(batch_results)
 
-            update_progress(int(progress_multiplier * (i + 1)))
+            update_progress(progress_multiplier)
 
             if i < len(unredeemed_data) // batch_size:
                 print(f"Batch {i + 1} processed. Waiting before next batch...")
