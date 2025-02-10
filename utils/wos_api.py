@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import time
 import logging
-from collections import defaultdict
+import pandas as pd
 from itertools import islice
 
 # Configure logging
@@ -180,10 +180,20 @@ async def process_redemption_batches(unredeemed_data, salt, update_progress, bat
 
             player_tokens = [login['token'] for login in login_results if login and 'token' in login]
 
+            # Create a DataFrame to hold login results
+            login_df = pd.DataFrame({
+                'fid': player_ids, 
+                'login_result': login_results
+            })
+
+            # Merge login results back into batch
+            batch = batch.merge(login_df, on='fid', how='left')
+
+            # Filter tokens and prepare redeem tasks
             redeem_tasks = []
-            for row, login_result in zip(batch.itertuples(index=False), login_results):
-                if isinstance(login_result, Exception):
-                    print(f"Login failed for fid={row.fid}: {login_result}")
+            for row in batch.itertuples(index=False):
+                if isinstance(row.login_result, Exception):
+                    print(f"Login failed for fid={row.fid}: {row.login_result}")
                     continue  # Skip redemption if login failed
                 
                 redeem_tasks.append(player_api.redeem_code(row.fid, row.code, salt))
