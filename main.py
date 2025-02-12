@@ -155,7 +155,7 @@ async def expired_codes():
         expired = []
         if login_response:
             for code in get_giftcodes():
-                result = await player_api.redeem_code(DEFAULT_PLAYER, SALT, code)
+                result = await player_api.redeem_code(DEFAULT_PLAYER, code, SALT)
                 if result['expired']:
                     expired.append(code)
                     deactivate_giftcode(code)
