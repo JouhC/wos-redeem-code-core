@@ -99,7 +99,7 @@ async def create_player(player: Player):
         login_response = await player_api.login_player(player.player_id, SALT)
         add_player(login_response['token'])
         message = backup_db()
-        print(message)
+        logger.info(message)
         return {"message": f"Player '{player.player_id}' added successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -113,7 +113,7 @@ async def update_player_profile(player: Player):
         login_response = await player_api.login_player(player.player_id, SALT)
         update_player(login_response['token'])
         message = backup_db()
-        print(message)
+        logger.info(message)
         return {"message": f"Player '{player.player_id}' info updated successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -130,7 +130,7 @@ async def fetch_giftcodes():
         if new_code is not None:
             new_codes.append(new_code)
     message = backup_db()
-    print({"message": "Gift codes fetched and added to the database.", "new_codes": new_codes})
+    logger.info({"message": "Gift codes fetched and added to the database.", "new_codes": new_codes})
     return {"message": "Gift codes fetched and added to the database.", "new_codes": new_codes}
 
 @app.get("/giftcodes/")
@@ -184,7 +184,7 @@ async def redeem_giftcode(request: RedemptionRequest):
                     record_redemption(request.player_id, code)
             results.append(result)
         message = backup_db()
-        print(message)
+        logger.info(message)
         return {"results": results}
 
     except Exception as e:
@@ -216,10 +216,10 @@ async def update_players():
         results = await process_logins_batches(player_ids, SALT)
 
         if results == []:
-            print("No players updated.")
+            logger.info("No players updated.")
         else:
             update_players_table(results)
-            print(f"{len(results)} players updated.")
+            logger.info(f"{len(results)} players updated.")
 
         backup_db()
         return get_players()
@@ -312,3 +312,15 @@ async def get_task_status(task_id: str):
     Checks the status of an asynchronous task, including progress.
     """
     return task_results.get(task_id, {"status": "Not Found", "progress": 0})
+
+@app.get("/task_status/check_inprogress/")
+async def get_task_inprogress():
+    """
+    Checks if there is a task in progress.
+    """
+    if task_results:
+        for _, task_id in enumerate(task_results):
+            if task_results[task_id]['status'] == 'Processing':
+                return task_id
+
+    return None
