@@ -14,18 +14,21 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Check for In-Progress Task
-      id: check_task  # Set step ID to reference outputs
+      id: check_task
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
-        INPROGRESS_TASK_ID=$(curl -s "$API_URL/check_inprogress/" | jq -r '.task_id')
+        echo "Checking for in-progress task..."
+        INPROGRESS_TASK_ID=$(curl -s -L "$API_URL/check_inprogress/" | jq -r '.task_id')
+
         if [ "$INPROGRESS_TASK_ID" != "null" ]; then
           echo "Task already in progress: $INPROGRESS_TASK_ID"
           echo "task_id=$INPROGRESS_TASK_ID" >> $GITHUB_ENV
-          echo "::set-output name=task_id::$INPROGRESS_TASK_ID"
+          echo "task_id=$INPROGRESS_TASK_ID" >> $GITHUB_OUTPUT
         else
           echo "No in-progress task found. Proceeding to start a new task."
-          echo "::set-output name=task_id::"
+          echo "task_id=" >> $GITHUB_ENV
+          echo "task_id=" >> $GITHUB_OUTPUT
         fi
 
     - name: Start New Task (if no in-progress task)
@@ -34,21 +37,29 @@ jobs:
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
-        RESPONSE=$(curl -s -X POST "$API_URL/automate-all/")
+        echo "Starting a new task..."
+        RESPONSE=$(curl -s -L -X POST "$API_URL/automate-all/")
         TASK_ID=$(echo $RESPONSE | jq -r '.task_id')
-        if [ "$TASK_ID" == "null" ]; then
-          echo "Failed to initiate redemption process."
+
+        if [ -z "$TASK_ID" ] || [ "$TASK_ID" == "null" ]; then
+          echo "❌ Failed to initiate redemption process."
           exit 1
         fi
+
         echo "Task started! Tracking progress..."
         echo "task_id=$TASK_ID" >> $GITHUB_ENV
-        echo "::set-output name=task_id::$TASK_ID"
+        echo "task_id=$TASK_ID" >> $GITHUB_OUTPUT
 
     - name: Poll Task Progress with Timeout
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
-        TASK_ID="${{ steps.start_task.outputs.task_id || steps.check_task.outputs.task_id }}"
+        TASK_ID="${{ env.task_id }}"
+        if [ -z "$TASK_ID" ]; then
+          echo "No valid task ID found. Exiting..."
+          exit 1
+        fi
+
         echo "Tracking progress for Task ID: $TASK_ID"
         START_TIME=$(date +%s)
         TIMEOUT=300  # 5 minutes in seconds
@@ -56,19 +67,22 @@ jobs:
         while true; do
           CURRENT_TIME=$(date +%s)
           ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
           if [ "$ELAPSED_TIME" -ge "$TIMEOUT" ]; then
-            echo "Task timeout reached. Stopping workflow."
+            echo "⏳ Task timeout reached. Stopping workflow."
             exit 1
           fi
-          sleep 5  # Poll every 5 seconds
-          STATUS_RESPONSE=$(curl -s "$API_URL/task_status/$TASK_ID/")
+
+          STATUS_RESPONSE=$(curl -s -L "$API_URL/task_status/$TASK_ID/")
           PROGRESS=$(echo $STATUS_RESPONSE | jq -r '.progress')
           STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
 
-          echo "Progress: $PROGRESS% - Status: $STATUS"
+          echo "⏳ Progress: $PROGRESS% - Status: $STATUS"
 
           if [ "$STATUS" == "Completed" ] || [ "$STATUS" == "Failed" ]; then
-            echo "Task finished with status: $STATUS"
+            echo "✅ Task finished with status: $STATUS"
             break
           fi
+
+          sleep 5  # Poll every 5 seconds
         done
