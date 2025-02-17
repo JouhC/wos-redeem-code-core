@@ -2,9 +2,8 @@ name: Cron Job for Backup and Automation
 
 on:
   schedule:
-    # Runs the workflow every 12 hours
-    - cron: "0 */12 * * *"
-  workflow_dispatch: # Allows manual triggering of the workflow
+    - cron: "0 */12 * * *"  # Runs every 12 hours
+  workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
   run-api-requests:
@@ -14,8 +13,54 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Send POST Request to /automate-all/
+    - name: Check for In-Progress Task
+      id: check_task  # Set step ID to reference outputs
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
-        curl -X POST "$API_URL/automate-all/"
+        INPROGRESS_TASK_ID=$(curl -s "$API_URL/check-inprogress/" | jq -r '.task_id')
+        if [ "$INPROGRESS_TASK_ID" != "null" ]; then
+          echo "Task already in progress: $INPROGRESS_TASK_ID"
+          echo "task_id=$INPROGRESS_TASK_ID" >> $GITHUB_ENV
+          echo "::set-output name=task_id::$INPROGRESS_TASK_ID"
+        else
+          echo "No in-progress task found. Proceeding to start a new task."
+          echo "::set-output name=task_id::"
+        fi
+
+    - name: Start New Task (if no in-progress task)
+      id: start_task
+      if: steps.check_task.outputs.task_id == ''
+      env:
+        API_URL: ${{ secrets.API_URL }}
+      run: |
+        RESPONSE=$(curl -s -X POST "$API_URL/automate-all/")
+        TASK_ID=$(echo $RESPONSE | jq -r '.task_id')
+        if [ "$TASK_ID" == "null" ]; then
+          echo "Failed to initiate redemption process."
+          exit 1
+        fi
+        echo "Task started! Tracking progress..."
+        echo "task_id=$TASK_ID" >> $GITHUB_ENV
+        echo "::set-output name=task_id::$TASK_ID"
+
+    - name: Poll Task Progress
+      env:
+        API_URL: ${{ secrets.API_URL }}
+      run: |
+        TASK_ID="${{ steps.start_task.outputs.task_id || steps.check_task.outputs.task_id }}"
+        echo "Tracking progress for Task ID: $TASK_ID"
+        
+        while true; do
+          sleep 5  # Poll every 5 seconds
+          STATUS_RESPONSE=$(curl -s "$API_URL/task-status/$TASK_ID/")
+          PROGRESS=$(echo $STATUS_RESPONSE | jq -r '.progress')
+          STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
+
+          echo "Progress: $PROGRESS% - Status: $STATUS"
+
+          if [ "$STATUS" == "Completed" ] || [ "$STATUS" == "Failed" ]; then
+            echo "Task finished with status: $STATUS"
+            break
+          fi
+        done
