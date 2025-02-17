@@ -18,7 +18,7 @@ jobs:
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
-        INPROGRESS_TASK_ID=$(curl -s "$API_URL/check-inprogress/" | jq -r '.task_id')
+        INPROGRESS_TASK_ID=$(curl -s "$API_URL/check_inprogress/" | jq -r '.task_id')
         if [ "$INPROGRESS_TASK_ID" != "null" ]; then
           echo "Task already in progress: $INPROGRESS_TASK_ID"
           echo "task_id=$INPROGRESS_TASK_ID" >> $GITHUB_ENV
@@ -44,16 +44,24 @@ jobs:
         echo "task_id=$TASK_ID" >> $GITHUB_ENV
         echo "::set-output name=task_id::$TASK_ID"
 
-    - name: Poll Task Progress
+    - name: Poll Task Progress with Timeout
       env:
         API_URL: ${{ secrets.API_URL }}
       run: |
         TASK_ID="${{ steps.start_task.outputs.task_id || steps.check_task.outputs.task_id }}"
         echo "Tracking progress for Task ID: $TASK_ID"
-        
+        START_TIME=$(date +%s)
+        TIMEOUT=300  # 5 minutes in seconds
+
         while true; do
+          CURRENT_TIME=$(date +%s)
+          ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+          if [ "$ELAPSED_TIME" -ge "$TIMEOUT" ]; then
+            echo "Task timeout reached. Stopping workflow."
+            exit 1
+          fi
           sleep 5  # Poll every 5 seconds
-          STATUS_RESPONSE=$(curl -s "$API_URL/task-status/$TASK_ID/")
+          STATUS_RESPONSE=$(curl -s "$API_URL/task_status/$TASK_ID/")
           PROGRESS=$(echo $STATUS_RESPONSE | jq -r '.progress')
           STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
 
