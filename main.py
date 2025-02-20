@@ -97,6 +97,9 @@ async def create_player(player: Player):
     try:
         player_api = PlayerAPI()
         login_response = await player_api.login_player(player.player_id, SALT)
+        if login_response is None:
+            raise HTTPException(status_code=400, detail=f"Adding Player '{player.player_id}' was unsuccessful.")
+        
         add_player(login_response['token'])
         message = backup_db()
         logger.info(message)
@@ -111,6 +114,7 @@ async def update_player_profile(player: Player):
     try:
         player_api = PlayerAPI()
         login_response = await player_api.login_player(player.player_id, SALT)
+        logger.info(f"Player {player.player_id}'s token: {login_response['token']}")
         update_player(login_response['token'])
         message = backup_db()
         logger.info(message)
