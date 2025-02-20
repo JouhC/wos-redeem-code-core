@@ -101,8 +101,11 @@ class PlayerAPI:
                         result = f"Player {player_id}: Already claimed redemption for gift code '{code}'!"
                         success, expired = True, False
                     elif err_code == 40004:  # Timeout or retry
-                        result = f"Player {player_id}: Unsuccessful redemption for '{code}'. Please retry."
-                        success, expired = False, False
+                        logger.warning(f"Player {player_id}: Unsuccessful redemption for '{code}'. Please retry.")
+                        await asyncio.sleep(backoff)
+                        backoff *= 2  # Exponential backoff
+                        retries += 1
+                        continue  # Retry request
                     else:
                         result = f"Player {player_id}: Redemption failed for '{code}' with unexpected error."
                         success, expired = False, False
