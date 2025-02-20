@@ -22,7 +22,7 @@ class PlayerAPI:
         self.session = aiohttp.ClientSession()
         self.players_data = {}  # Stores player_id -> (session data, request data)
 
-    async def login_player(self, player_id, salt):
+    async def login_player(self, player_id, salt, max_retries=5):
         """Logs in a player and stores request data for reuse."""
         if player_id in self.players_data:
             return self.players_data[player_id]  # Skip re-login if already logged in
@@ -35,25 +35,36 @@ class PlayerAPI:
             f"fid={request_data['fid']}&time={request_data['time']}{salt}".encode("utf-8")
         ).hexdigest()
 
-        try:
-            async with self.session.post(f"{URL}/player", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
-                response.raise_for_status()
-                login_response = await response.json()
+        retries = 0
+        backoff = 1  # Start with 1 second backoff
 
-                if login_response.get("msg") != "success":
-                    logger.info(f"Login failed for player {player_id}: {login_response}")
-                    return None
+        while retries <= max_retries:
+            try:
+                async with self.session.post(f"{URL}/player", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
+                    if response.status == 429:
+                        logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
+                        await asyncio.sleep(backoff)
+                        backoff *= 2  # Exponential backoff
+                        retries += 1
+                        continue  # Retry request
 
-                self.players_data[player_id] = {
-                    "token": login_response.get("data", {}),
-                    "request_data": request_data
-                }
-                return self.players_data[player_id]
+                    response.raise_for_status()
+                    login_response = await response.json()
 
-        except aiohttp.ClientError as e:
-            logger.info(f"Network error for player {player_id}: {e}")
-        except Exception as e:
-            logger.info(f"Unexpected error for player {player_id}: {e}")
+                    if login_response.get("msg") != "success":
+                        logger.info(f"Login failed for player {player_id}: {login_response}")
+                        return None
+
+                    self.players_data[player_id] = {
+                        "token": login_response.get("data", {}),
+                        "request_data": request_data
+                    }
+                    return self.players_data[player_id]
+
+            except aiohttp.ClientError as e:
+                logger.info(f"Network error for player {player_id}: {e}")
+            except Exception as e:
+                logger.info(f"Unexpected error for player {player_id}: {e}")
 
         return None
 
@@ -179,6 +190,8 @@ async def process_redemption_batches(unredeemed_data, salt, update_progress, bat
             yield df.loc[batch]
 
     redeem_results = []
+    player_tokens = []
+
     try:
         total_batches = len(unredeemed_data) // batch_size + (1 if len(unredeemed_data) % batch_size else 0)
         progress_multiplier = 50 // total_batches
@@ -189,7 +202,7 @@ async def process_redemption_batches(unredeemed_data, salt, update_progress, bat
             login_tasks = [player_api.login_player(player_id, salt) for player_id in player_ids]
             login_results = await asyncio.gather(*login_tasks, return_exceptions=True)
 
-            player_tokens = [login['token'] for login in login_results if login and 'token' in login]
+            player_tokens.extend(login['token'] for login in login_results if login and 'token' in login)
 
             # Create a DataFrame to hold login results
             login_df = pd.DataFrame({
