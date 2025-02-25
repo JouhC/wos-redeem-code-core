@@ -86,6 +86,10 @@ class RedemptionRequest(BaseModel):
 async def root():
     return {"message": "Welcome to the Gift Code Redemption API!"}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 # Player endpoints
 @app.get("/players/list/")
 async def list_players():
