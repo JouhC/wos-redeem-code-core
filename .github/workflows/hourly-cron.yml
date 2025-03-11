@@ -2,7 +2,7 @@ name: Cron Job for Backup and Automation
 
 on:
   schedule:
-    - cron: "0 */12 * * *"  # Runs every 12 hours
+    - cron: "0 */6 * * *"  # Runs every 6 hours
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
@@ -12,6 +12,30 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
+
+    - name: Health Check - Wait for API Service to Start
+      id: health_check
+      env:
+        API_URL: ${{ secrets.API_URL }}
+      run: |
+        echo "Checking API health..."
+        MAX_RETRIES=24  # 2 minutes (24 * 5 seconds)
+        RETRY_DELAY=5
+
+        for ((i=1; i<=MAX_RETRIES; i++)); do
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" || echo "000")
+
+          if [ "$RESPONSE" -eq 200 ]; then
+            echo "✅ API is up and running."
+            exit 0
+          fi
+
+          echo "Waiting for API... (Attempt $i/$MAX_RETRIES)"
+          sleep $RETRY_DELAY
+        done
+
+        echo "❌ API did not start in time. Exiting workflow."
+        exit 1
 
     - name: Check for In-Progress Task
       id: check_task
@@ -29,7 +53,6 @@ jobs:
           echo "No in-progress task found. Proceeding to start a new task."
           echo "task_id=" >> $GITHUB_ENV
           echo "task_id=" >> $GITHUB_OUTPUT
-        fi
 
     - name: Start New Task (if no in-progress task)
       id: start_task
