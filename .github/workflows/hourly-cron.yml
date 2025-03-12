@@ -43,7 +43,7 @@ jobs:
         API_URL: ${{ secrets.API_URL }}
       run: |
         echo "Checking for in-progress task..."
-        INPROGRESS_TASK_ID=$(curl -s -L "$API_URL/check_inprogress/" | jq -r '.task_id')
+        INPROGRESS_TASK_ID=$(curl -s -L "$API_URL/task_status/check_inprogress/" | jq -r '.task_id')
 
         if [ "$INPROGRESS_TASK_ID" != "null" ]; then
           echo "Task already in progress: $INPROGRESS_TASK_ID"
