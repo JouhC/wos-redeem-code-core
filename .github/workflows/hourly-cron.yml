@@ -53,6 +53,7 @@ jobs:
           echo "No in-progress task found. Proceeding to start a new task."
           echo "task_id=" >> $GITHUB_ENV
           echo "task_id=" >> $GITHUB_OUTPUT
+        fi
 
     - name: Start New Task (if no in-progress task)
       id: start_task
