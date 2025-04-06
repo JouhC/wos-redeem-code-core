@@ -1,6 +1,3 @@
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
-import os
 if not bool(os.getenv("RENDER")): 
     from dotenv import load_dotenv
     load_dotenv()  # Load .env file in local development
@@ -8,15 +5,19 @@ from db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list
 )
+from contextlib import asynccontextmanager
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
+from time import time
 from utils.fetch_gc_async import fetch_latest_codes_async
 from utils.rclone import backup_db
 from utils.wos_api import PlayerAPI, process_redemption_batches, process_logins_batches
-import pandas as pd
-import logging
-from time import time
-from datetime import datetime
-import uuid
 import asyncio
+import logging
+import os
+import pandas as pd
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,23 +26,31 @@ logger = logging.getLogger("request_logger")
 # Secret key for sign generation
 SALT = os.getenv("SALT")
 DEFAULT_PLAYER = os.getenv("DEFAULT_PLAYER")
+is_ready = False
 
-# Check if running in production (Render sets the RENDER environment variable)
-if not bool(os.getenv("RENDER")):
-    async def init_default_player():
-        init_db()
-        player_api = PlayerAPI()
-        login_response = await player_api.login_player(DEFAULT_PLAYER, SALT)
-        add_player(login_response['token'])
-        await player_api.close_session()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global is_ready
+    # Check if running in production (Render sets the RENDER environment variable)
+    if not bool(os.getenv("RENDER")):
+        async def init_default_player():
+            init_db()
+            player_api = PlayerAPI()
+            login_response = await player_api.login_player(DEFAULT_PLAYER, SALT)
+            add_player(login_response['token'])
+            await player_api.close_session()
+        
+        await init_default_player()  
 
-    asyncio.run(init_default_player())
+    is_ready = True  # App is ready to serve requests
+    yield
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Gift Code Redemption API",
     description="API for managing players, fetching gift codes, and redeeming them.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Task tracking dictionary
@@ -85,6 +94,10 @@ class RedemptionRequest(BaseModel):
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Gift Code Redemption API!"}
+
+@app.get("/healthz")
+async def healthz():
+    return {"ready": is_ready}
 
 @app.get("/health")
 async def health():
