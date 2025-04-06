@@ -1,3 +1,4 @@
+import os
 if not bool(os.getenv("RENDER")): 
     from dotenv import load_dotenv
     load_dotenv()  # Load .env file in local development
@@ -15,7 +16,6 @@ from utils.rclone import backup_db
 from utils.wos_api import PlayerAPI, process_redemption_batches, process_logins_batches
 import asyncio
 import logging
-import os
 import pandas as pd
 import uuid
 
