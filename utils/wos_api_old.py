@@ -5,8 +5,6 @@ import time
 import logging
 import pandas as pd
 from itertools import islice
-from utils.captcha_solver import CaptchaSolver
-from db import update_captcha_feedback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +16,6 @@ HTTP_HEADER = {
     "Content-Type": "application/json",
     "Accept": "application/json",
 }
-captcha_solver = CaptchaSolver()
 
 class PlayerAPI:
     def __init__(self):
@@ -70,45 +67,6 @@ class PlayerAPI:
                 logger.info(f"Unexpected error for player {player_id}: {e}")
 
         return None
-    
-    async def get_captcha_and_solve(self, player_id, salt, delay=1, max_retries=5):
-        """Get CAPTCHA then solve it for a logged-in player with retry on 429 Too Many Requests."""
-        if player_id not in self.players_data:
-            logger.info(f"Error: Player {player_id} is not logged in.")
-            return None
-        
-        await asyncio.sleep(delay)
-
-        captcha_request_data = self.players_data[player_id]["request_data"].copy()
-
-        retries = 0
-        backoff = 1  # Start with 1 second backoff
-
-        while retries <= max_retries:
-            try:
-                async with self.session.post(f"{URL}/captcha", json=captcha_request_data, headers=HTTP_HEADER, timeout=30) as response:
-                    if response.status == 429:
-                        logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
-                        await asyncio.sleep(backoff)
-                        backoff *= 2  # Exponential backoff
-                        retries += 1
-                        continue  # Retry request
-
-                    response.raise_for_status()
-                    captcha_response = await response.json()
-
-                    if captcha_response.get("msg") != "SUCCESS":
-                        logger.info(f"Captcha retrieval failed for player {player_id}: {captcha_response}")
-                        return None
-                    
-                    self.players_data[player_id]['to_solve'] = captcha_response
-
-                    return captcha_solver.solve(captcha_response)
-    
-            except aiohttp.ClientError as e:
-                logger.info(f"Captcha - Network error for player {player_id}: {e}")
-            except Exception as e:
-                logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
 
     async def redeem_code(self, player_id, code, salt, delay=1, max_retries=5):
         """Redeems a gift code for a logged-in player with retry on 429 Too Many Requests."""
@@ -120,17 +78,15 @@ class PlayerAPI:
 
         redeem_request_data = self.players_data[player_id]["request_data"].copy()
         redeem_request_data["cdk"] = code
+        redeem_request_data["sign"] = hashlib.md5(
+            f"cdk={redeem_request_data['cdk']}&fid={redeem_request_data['fid']}&time={redeem_request_data['time']}{salt}".encode("utf-8")
+        ).hexdigest()
 
         retries = 0
         backoff = 1  # Start with 1 second backoff
 
         while retries <= max_retries:
             try:
-                redeem_request_data["captcha_code"], captcha_id = await self.get_captcha_and_solve(player_id, salt)
-                redeem_request_data["sign"] = hashlib.md5(
-                    f"captcha_code={redeem_request_data['captcha_code']}&cdk={redeem_request_data['cdk']}&fid={redeem_request_data['fid']}&time={redeem_request_data['time']}{salt}".encode("utf-8")
-                ).hexdigest()
-
                 async with self.session.post(f"{URL}/gift_code", json=redeem_request_data, headers=HTTP_HEADER, timeout=30) as response:
                     if response.status == 429:
                         logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
@@ -161,17 +117,10 @@ class PlayerAPI:
                         backoff *= 2  # Exponential backoff
                         retries += 1
                         continue  # Retry request
-                    elif err_code == 40103:  # CAPTCHA CHECK ERROR.
-                        logger.warning(f"Player {player_id}: Unsuccessful redemption for '{code}'. CAPTCHA CHECK ERROR.")
-                        await asyncio.sleep(backoff)
-                        backoff *= 2
                     else:
-                        result = f"Player {player_id}: Redemption failed for '{code}' with unexpected error. {redeem_response}"
+                        result = f"Player {player_id}: Redemption failed for '{code}' with unexpected error."
                         success, expired = False, False
 
-                    if success:
-                        update_captcha_feedback(captcha_id)  # Update captcha feedback in DB
-                        
                     return {"message": result, "success": success, "player_id": player_id, "code": code, "expired": expired}
 
             except aiohttp.ClientError as e:

@@ -31,6 +31,7 @@ certifi==2024.12.14
 charset-normalizer==3.4.1
     # via requests
 click==8.1.8
+ddddocr
     # via uvicorn
 fastapi==0.115.7
     # via -r requirements.in

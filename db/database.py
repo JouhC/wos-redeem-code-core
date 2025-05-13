@@ -49,6 +49,15 @@ def init_db():
             FOREIGN KEY (code) REFERENCES giftcodes(code)
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE captchas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            img BLOB,
+            feedback BOOLEAN DEFAULT FALSE
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -198,12 +207,15 @@ def get_redeemed_codes(player_id):
     """Get all redeemed codes for a player."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT code FROM redemptions WHERE player_id = ?
-    """, (player_id,))
-    redeemed_codes = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return redeemed_codes
+
+    try:
+        cursor.execute("""
+            SELECT code FROM redemptions WHERE player_id = ?
+        """, (player_id,))
+        redeemed_codes = [row[0] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+        return redeemed_codes
 
 def update_players_table(player_data_list):
     """Update players' information from a DataFrame."""
@@ -234,16 +246,45 @@ def get_unredeemed_code_player_list():
     conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
     cursor = conn.cursor()
     # Query to get players who have not redeemed a gift code yet
-    cursor.execute("""
-        SELECT p.fid, g.code
-        FROM players p
-        CROSS JOIN giftcodes g
-        LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
-        WHERE r.code IS NULL AND g.status = 'Active'
-    """)
-    unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return unredeemed_codes_players
+    try:
+        cursor.execute("""
+            SELECT p.fid, g.code
+            FROM players p
+            CROSS JOIN giftcodes g
+            LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
+            WHERE r.code IS NULL AND g.status = 'Active'
+        """)
+        unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+        return unredeemed_codes_players
+
+def record_captcha(name, img_data):
+    """Record a captcha image with a name."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("INSERT INTO captchas (name, img) VALUES (?, ?)", (name, img_data))
+        conn.commit()
+        print("Captcha recorded!")
+    finally:
+         # Get the unique ID generated
+        generated_id = cursor.lastrowid
+        conn.close()
+        return generated_id
+    
+def update_captcha_feedback(captcha_id):
+    """Update the feedback for a specific captcha."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("UPDATE captchas SET feedback = TRUE WHERE id = ?", (captcha_id))
+        conn.commit()
+        print(f"Captcha ID '{captcha_id}' feedback set to TRUE.")
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     pass
