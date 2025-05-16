@@ -66,6 +66,8 @@ jobs:
           -H "Content-Type: application/json" \
           -d '{"n": "all"}')
 
+        TASK_ID=$(echo "$RESPONSE" | jq -r '.task_id')
+
         if [ -z "$TASK_ID" ] || [ "$TASK_ID" == "null" ]; then
           echo "❌ Failed to initiate redemption process."
           exit 1
