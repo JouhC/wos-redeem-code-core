@@ -3,7 +3,7 @@ if not bool(os.getenv("RENDER")):
     from dotenv import load_dotenv
     load_dotenv()  # Load .env file in local development
 from db.database import (
-    init_db, add_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
+    init_db, add_player, remove_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player
 )
 import batch_redeemer
@@ -143,6 +143,17 @@ async def update_player_profile(player: Player):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         await player_api.close_session()
+
+@app.post("/players/remove/")
+async def remove_player_db(player: Player):
+    try:
+        response = remove_player(player.player_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        message = backup_db()
+        logger.info(message)
+        return {"response": response}
 
 # Gift code endpoints
 @app.get("/giftcodes/fetch/")
