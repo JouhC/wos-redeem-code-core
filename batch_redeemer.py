@@ -101,7 +101,10 @@ async def process(fid, code, update_progress, progress_multiplier):
 
     while retries < 4:
         retries += 1
-        captcha_data = await player_api.get_captcha(fid)
+        captcha_data = await player_api.get_captcha(fid, SALT)
+        if captcha_data is None:
+            logger.info(f"Captcha data is None for {fid}. Retrying...")
+            continue
         captcha_solution, captcha_id = solve_captcha.solve(captcha_data)
         result = await player_api.redeem_code(fid, code, captcha_solution, SALT)
         
@@ -124,7 +127,6 @@ async def process(fid, code, update_progress, progress_multiplier):
                 elif error_codes[str(err_code)]['success'] == True:
                     create_cache("redeemed_giftcode", {"fid": fid, "code": code})
                     create_cache("success_captcha", {"captcha_id": captcha_id})
-                    create_cache("expired_giftcode", {"code": code})
                     break
                 elif error_codes[str(err_code)]['expired'] == True:
                     create_cache("expired_giftcode", {"code": code})
@@ -186,24 +188,12 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
         all_codes = get_giftcodes()
         update_progress(10)
 
-        # Step 3: Get unredeemed codes
-        unredeemed_data = get_unredeemed_code_player_list()
-        if not unredeemed_data:
-            task_results[task_id] = {
-                "status": "Completed",
-                "progress": 100,
-                "message": "No unredeemed codes found. Exiting.",
-                "giftcodes": all_codes,
-                "players": players
-            }
-            return
-        update_progress(10)
-
-        # Step 4: Convert to DataFrame and process redemptions
-        unredeemed_df = pd.DataFrame(unredeemed_data)
         queue = asyncio.Queue()
         if default_player:
-            unredeemed_df = unredeemed_df[unredeemed_df["fid"] == default_player]
+            unredeemed_df = pd.DataFrame({
+                                "fid": [default_player] * len(all_codes),
+                                "code": all_codes
+                            })
             if unredeemed_df.empty:
                 task_results[task_id] = {
                     "status": "Completed",
@@ -213,7 +203,25 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "players": players
                 }
                 return
-        elif n:
+            update_progress(10)
+        else:
+            # Get unredeemed codes
+            unredeemed_data = get_unredeemed_code_player_list()
+            if not unredeemed_data:
+                task_results[task_id] = {
+                    "status": "Completed",
+                    "progress": 100,
+                    "message": "No unredeemed codes found. Exiting.",
+                    "giftcodes": all_codes,
+                    "players": players
+                }
+                return
+            update_progress(10)
+
+            # Convert to DataFrame and process redemptions
+            unredeemed_df = pd.DataFrame(unredeemed_data)
+        
+        if n:
             unredeemed_df = unredeemed_df.sample(n=n)
             if unredeemed_df.empty:
                 task_results[task_id] = {

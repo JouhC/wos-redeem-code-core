@@ -265,3 +265,8 @@ async def get_task_inprogress():
                 return task_id
 
     return None
+
+@app.post("/task_status/reset")
+def reset():
+    task_results.clear()
+    return {"status": "cleared"}

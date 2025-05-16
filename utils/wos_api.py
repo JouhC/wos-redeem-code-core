@@ -66,7 +66,7 @@ class PlayerAPI:
 
         return None
     
-    async def get_captcha(self, player_id, delay=2, max_retries=5):
+    async def get_captcha(self, player_id, salt, delay=2, max_retries=5):
         """Get CAPTCHA then solve it for a logged-in player with retry on 429 Too Many Requests."""
         if player_id not in self.players_data:
             logger.info(f"Error: Player {player_id} is not logged in.")
@@ -81,6 +81,7 @@ class PlayerAPI:
 
         retries = 0
         backoff = 1  # Start with 1 second backoff
+        captcha_response = None
 
         while retries <= max_retries:
             try:
@@ -95,13 +96,15 @@ class PlayerAPI:
                     response.raise_for_status()
                     captcha_response = await response.json()
 
+                    if captcha_response.get("err_code") == 40009:
+                        self.players_data.pop(player_id, None)
+                        login_player = await self.login_player(player_id, salt)
+
                     if captcha_response.get("msg") != "SUCCESS":
                         logger.info(f"Captcha retrieval failed for player {player_id}: {captcha_response}")
                         return None
                     
                     self.players_data[player_id]['to_solve'] = captcha_response
-
-                    return captcha_response
     
             except aiohttp.ClientError as e:
                 logger.info(f"Captcha - Network error for player {player_id}: {e}")
@@ -109,6 +112,8 @@ class PlayerAPI:
             except Exception as e:
                 logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
                 continue
+            finally:
+                return captcha_response
 
     async def redeem_code(self, player_id, code, captcha_solution, salt, delay=1, max_retries=5):
         """Redeems a gift code for a logged-in player with retry on 429 Too Many Requests."""
