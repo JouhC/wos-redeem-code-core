@@ -9,7 +9,7 @@ RCLONE_SCOPE=os.getenv("RCLONE_SCOPE")
 RCLONE_ROOT_FOLDER_ID=os.getenv("RCLONE_ROOT_FOLDER_ID")
 RCLONE_TOKEN=os.getenv("RCLONE_TOKEN")
 RCLONE_TEAM_DRIVE=os.getenv("RCLONE_TEAM_DRIVE")
-RCLONE_PASSWORD=os.getenv("RCLONE_PASSWORD")
+RCLONE_PASSWORD=os.getenv("RCLONE_CONFIG_PASS")
 
 def add_rclone_config_password():
     """Add a configuration password to rclone."""

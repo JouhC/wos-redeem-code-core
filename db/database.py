@@ -280,7 +280,7 @@ def update_captcha_feedback(captcha_id):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("UPDATE captchas SET feedback = TRUE WHERE id = ?", (captcha_id))
+        cursor.execute("UPDATE captchas SET feedback = TRUE WHERE id = ?", (captcha_id,))
         conn.commit()
         print(f"Captcha ID '{captcha_id}' feedback set to TRUE.")
     finally:
