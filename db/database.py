@@ -49,6 +49,15 @@ def init_db():
             FOREIGN KEY (code) REFERENCES giftcodes(code)
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE captchas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            img BLOB,
+            feedback BOOLEAN DEFAULT FALSE
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -64,9 +73,9 @@ def add_player(player_data):
             VALUES (:fid, :nickname, :kid, :stove_lv, :stove_lv_content, :avatar_image, :total_recharge_amount, :subscribed_date)
         """, {**player_data, 'subscribed_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
         conn.commit()
-        print(f"Player '{player_data['fid']}' added successfully.")
+        logger.info(f"Player '{player_data['fid']}' added successfully.")
     except sqlite3.IntegrityError:
-        print(f"Player '{player_data['fid']}' already exists.")
+        logger.info(f"Player '{player_data['fid']}' already exists.")
     finally:
         conn.close()
 
@@ -87,15 +96,36 @@ def update_player(player_data):
             WHERE fid = :fid
         """, {**player_data})
         conn.commit()
-        print(f"Player '{player_data['fid']}' info updated successfully.")
+        logger.info(f"Player '{player_data['fid']}' info updated successfully.")
     except sqlite3.IntegrityError:
-        print(f"Player '{player_data['fid']}' info failed to update.")
+        logger.info(f"Player '{player_data['fid']}' info failed to update.")
     finally:
         conn.close()
 
+def remove_player(fid):
+    """Removes a player from the database."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            DELETE FROM players WHERE fid = ?
+        """, (fid,))
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            response = f"Player '{fid}' not found in the database."
+        else:
+            response = f"Player '{fid}' removed successfully."
+    except sqlite3.IntegrityError:
+        logger.info(f"Player '{fid}' unable to remove.")
+    finally:
+        logger.info(response)
+        conn.close()
+        return response
+
 def get_players():
     """Retrieve all subscribed players."""
-    print(DB_FILE)
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
     cursor = conn.cursor()
@@ -135,9 +165,9 @@ def add_giftcode(code):
             VALUES (?, ?, ?)
         """, (code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Active"))
         conn.commit()
-        print(f"Gift code '{code}' added successfully.")
+        logger.info(f"Gift code '{code}' added successfully.")
     except sqlite3.IntegrityError:
-        print(f"Gift code '{code}' already exists.")
+        logger.info(f"Gift code '{code}' already exists.")
         code = None
     finally:
         conn.close()
@@ -161,19 +191,19 @@ def deactivate_giftcode(code):
         cursor.execute("SELECT status FROM giftcodes WHERE code = ?", (code,))
         result = cursor.fetchone()
         if result is None:
-            print(f"Gift code '{code}' does not exist.")
+            logger.info(f"Gift code '{code}' does not exist.")
             message = f"Gift code '{code}' does not exist."
         elif result[0] == 'Inactive':
-            print(f"Gift code '{code}' is already inactive.")
+            logger.info(f"Gift code '{code}' is already inactive.")
             message = f"Gift code '{code}' is already inactive."
         else:
             # Update the status to 'Inactive'
             cursor.execute("UPDATE giftcodes SET status = 'Inactive' WHERE code = ?", (code,))
             conn.commit()
-            print(f"Gift code '{code}' has been set to 'Inactive'.")
+            logger.info(f"Gift code '{code}' has been set to 'Inactive'.")
             message = f"Gift code '{code}' has been set to 'Inactive'."
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.info(f"An error occurred: {e}")
         message = f"An error occurred: {e}"
     finally:
         conn.close()
@@ -190,7 +220,7 @@ def record_redemption(player_id, code):
             VALUES (?, ?, ?)
         """, (player_id, code, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
-        print(f"Redemption recorded: Player '{player_id}' redeemed code '{code}'.")
+        logger.info(f"Redemption recorded: Player '{player_id}' redeemed code '{code}'.")
     finally:
         conn.close()
 
@@ -198,12 +228,15 @@ def get_redeemed_codes(player_id):
     """Get all redeemed codes for a player."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT code FROM redemptions WHERE player_id = ?
-    """, (player_id,))
-    redeemed_codes = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return redeemed_codes
+
+    try:
+        cursor.execute("""
+            SELECT code FROM redemptions WHERE player_id = ?
+        """, (player_id,))
+        redeemed_codes = [row[0] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+        return redeemed_codes
 
 def update_players_table(player_data_list):
     """Update players' information from a DataFrame."""
@@ -234,16 +267,45 @@ def get_unredeemed_code_player_list():
     conn.row_factory = sqlite3.Row  # This allows rows to be accessed as dictionaries
     cursor = conn.cursor()
     # Query to get players who have not redeemed a gift code yet
-    cursor.execute("""
-        SELECT p.fid, g.code
-        FROM players p
-        CROSS JOIN giftcodes g
-        LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
-        WHERE r.code IS NULL AND g.status = 'Active'
-    """)
-    unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    return unredeemed_codes_players
+    try:
+        cursor.execute("""
+            SELECT p.fid, g.code
+            FROM players p
+            CROSS JOIN giftcodes g
+            LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
+            WHERE r.code IS NULL AND g.status = 'Active'
+        """)
+        unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+        return unredeemed_codes_players
+
+def record_captcha(name, img_data):
+    """Record a captcha image with a name."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("INSERT INTO captchas (name, img) VALUES (?, ?)", (name, img_data))
+        conn.commit()
+        logger.info("Captcha recorded!")
+    finally:
+         # Get the unique ID generated
+        generated_id = cursor.lastrowid
+        conn.close()
+        return generated_id
+    
+def update_captcha_feedback(captcha_id):
+    """Update the feedback for a specific captcha."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("UPDATE captchas SET feedback = TRUE WHERE id = ?", (captcha_id,))
+        conn.commit()
+        logger.info(f"Captcha ID '{captcha_id}' feedback set to TRUE.")
+    finally:
+        conn.close()
 
 if __name__ == "__main__":
     pass

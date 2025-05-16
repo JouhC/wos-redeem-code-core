@@ -62,8 +62,9 @@ jobs:
         API_URL: ${{ secrets.API_URL }}
       run: |
         echo "Starting a new task..."
-        RESPONSE=$(curl -s -L -X POST "$API_URL/automate-all/")
-        TASK_ID=$(echo $RESPONSE | jq -r '.task_id')
+        RESPONSE=$(curl -s -L -X POST "$API_URL/automate-all/" \
+          -H "Content-Type: application/json" \
+          -d '{"n": "all"}')
 
         if [ -z "$TASK_ID" ] || [ "$TASK_ID" == "null" ]; then
           echo "❌ Failed to initiate redemption process."

@@ -1,0 +1,50 @@
+{
+  "40014": {
+    "message": "The gift code doesn't exist.",
+    "success": false,
+    "expired": true,
+    "captcha_error": false
+  },
+  "40007": {
+    "message": "The gift code is expired.",
+    "success": false,
+    "expired": true,
+    "captcha_error": false
+  },
+  "20000": {
+    "message": "Successful redemption or already claimed.",
+    "success": true,
+    "expired": false,
+    "captcha_error": false
+  },
+  "40008": {
+    "message": "Successful redemption or already claimed.",
+    "success": true,
+    "expired": false,
+    "captcha_error": false
+  },
+  "40005": {
+    "message": "Already claimed redemption.",
+    "success": true,
+    "expired": false,
+    "captcha_error": false
+  },
+  "40004": {
+    "message": "Unsuccessful redemption. Please retry (timeout or retry).",
+    "success": false,
+    "expired": false,
+    "captcha_error": false
+  },
+  "40103": {
+    "message": "CAPTCHA check error.",
+    "success": false,
+    "expired": false,
+    "captcha_error": true
+  },
+  "default": {
+    "message": "Redemption failed with unexpected error.",
+    "success": false,
+    "expired": false,
+    "captcha_error": false
+  }
+}
