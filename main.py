@@ -30,7 +30,6 @@ is_ready = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global is_ready
     # Check if running in production (Render sets the RENDER environment variable)
     if not bool(os.getenv("RENDER")):
         async def init_default_player():
@@ -42,7 +41,15 @@ async def lifespan(app: FastAPI):
         
         await init_default_player()  
 
-    is_ready = True  # App is ready to serve requests
+    for _ in range(10):  # Try up to 10 times
+        if os.path.exists(os.getenv("DB_FILE")):
+            global is_ready
+            is_ready = True  # App is ready to serve requests
+            break
+        await asyncio.sleep(1)
+    else:
+        raise RuntimeError("Database file still not found after waiting.")
+
     yield
 
 # Initialize FastAPI app
