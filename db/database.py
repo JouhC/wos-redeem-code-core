@@ -141,11 +141,13 @@ def get_players():
                     p.avatar_image,
                     p.total_recharge_amount,
                     p.subscribed_date,
-                    CASE WHEN COUNT(g.code) = COUNT(r.code) THEN 1 ELSE 0 END AS redeemed_all
+                    CASE 
+                        WHEN COUNT(g.code) = COUNT(r.code) THEN 1 
+                        ELSE 0 
+                    END AS redeemed_all
                 FROM players p
-                CROSS JOIN giftcodes g
+                LEFT JOIN giftcodes g ON g.status = 'Active'
                 LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
-                WHERE g.status = 'Active'
                 GROUP BY p.id
             """)
 
