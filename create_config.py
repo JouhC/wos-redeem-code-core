@@ -35,6 +35,7 @@ def add_rclone_config_password():
             child.sendline("q")  # Quit to main menu
             child.expect("e/n/d/r/c/s/q>")
             child.sendline("q")  # Quit the config menu
+            child.expect(pexpect.EOF)
 
             print("\nConfiguration password successfully added to rclone.")
             return
