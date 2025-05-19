@@ -32,24 +32,27 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
     Returns:
         list: A list of extracted codes.
     """
-    try:
-        async with asyncpraw.Reddit(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            user_agent=USER_AGENT
-        ) as reddit:  # Ensures proper closing
-            subreddit = await reddit.subreddit(subreddit_name)
-            codes = []
-            async for submission in subreddit.search(query=keyword.lower(), time_filter='month'):
-                if submission.is_self:
-                    code = extract_code(submission.selftext)
-                    if code:
-                        codes.append(code)
+    reddit = asyncpraw.Reddit(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        user_agent=USER_AGENT
+    )
 
-            return codes
+    try:
+        subreddit = await reddit.subreddit(subreddit_name)
+        codes = []
+        async for submission in subreddit.search(query=keyword.lower(), time_filter='month'):
+            if submission.is_self:
+                code = extract_code(submission.selftext)
+                if code:
+                    codes.append(code)
+        return codes
     except Exception as e:
         logger.error("Error fetching codes: %s", e)
         return []
+    finally:
+        await reddit.close()  # Explicitly close Reddit client
+        logger.info("Reddit session closed.")
 
 async def main():
     """Main function to test fetching gift codes."""
