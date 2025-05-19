@@ -271,7 +271,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
             "status": "Completed",
             "progress": 100,
             "message": "Main logic executed successfully.",
-            "giftcodes": all_codes,
+            "giftcodes": get_giftcodes(),
             "players": get_players()
         }
     except Exception as e:
