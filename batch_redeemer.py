@@ -200,7 +200,8 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "progress": 100,
                     "message": f"No unredeemed codes found for player {default_player}. Exiting.",
                     "giftcodes": all_codes,
-                    "players": players
+                    "players": players,
+                    "new_codes": new_codes
                 }
                 return
             update_progress(10)
@@ -213,7 +214,8 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "progress": 100,
                     "message": "No unredeemed codes found. Exiting.",
                     "giftcodes": all_codes,
-                    "players": players
+                    "players": players,
+                    "new_codes": new_codes
                 }
                 return
             update_progress(10)
@@ -229,7 +231,8 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "progress": 100,
                     "message": f"No unredeemed codes found for the sample size {n}. Exiting.",
                     "giftcodes": all_codes,
-                    "players": players
+                    "players": players,
+                    "new_codes": new_codes
                 }
                 return
 
@@ -271,8 +274,9 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
             "status": "Completed",
             "progress": 100,
             "message": "Main logic executed successfully.",
-            "giftcodes": all_codes,
-            "players": get_players()
+            "giftcodes": get_giftcodes(),
+            "players": get_players(),
+            "new_codes": new_codes
         }
     except Exception as e:
         task_results[task_id] = {"status": "Failed", "progress": 100, "error": str(e)}
