@@ -183,8 +183,11 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
 
         # Step 2: Fetch new gift codes
         new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
+        new_codes_true = []
         for code in new_codes:
-            add_giftcode(code)
+            gc_response = add_giftcode(code)
+            if gc_response is not None:
+                new_codes_true.append(gc_response)
         all_codes = get_giftcodes()
         update_progress(10)
 
@@ -201,7 +204,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "message": f"No unredeemed codes found for player {default_player}. Exiting.",
                     "giftcodes": all_codes,
                     "players": players,
-                    "new_codes": new_codes
+                    "new_codes": new_codes_true
                 }
                 return
             update_progress(10)
@@ -215,7 +218,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "message": "No unredeemed codes found. Exiting.",
                     "giftcodes": all_codes,
                     "players": players,
-                    "new_codes": new_codes
+                    "new_codes": new_codes_true
                 }
                 return
             update_progress(10)
@@ -232,7 +235,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "message": f"No unredeemed codes found for the sample size {n}. Exiting.",
                     "giftcodes": all_codes,
                     "players": players,
-                    "new_codes": new_codes
+                    "new_codes": new_codes_true
                 }
                 return
 
@@ -276,7 +279,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
             "message": "Main logic executed successfully.",
             "giftcodes": get_giftcodes(),
             "players": get_players(),
-            "new_codes": new_codes
+            "new_codes": new_codes_true
         }
     except Exception as e:
         task_results[task_id] = {"status": "Failed", "progress": 100, "error": str(e)}
