@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
             global is_ready
             is_ready = True  # App is ready to serve requests
             break
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
     else:
         raise RuntimeError("Database file still not found after waiting.")
 
