@@ -37,6 +37,7 @@ def add_rclone_config_password():
             child.sendline("q")  # Quit the config menu
 
             print("\nConfiguration password successfully added to rclone.")
+            return
         except pexpect.exceptions.TIMEOUT:
             print("⚠️ Timeout occurred while interacting with rclone.")
         except pexpect.exceptions.EOF:
