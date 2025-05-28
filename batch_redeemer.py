@@ -238,6 +238,8 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
                     "new_codes": new_codes_true
                 }
                 return
+        
+        unredeemed_df = unredeemed_df.head(20)
 
         # Create a shared queue
         queue = asyncio.Queue()
@@ -276,7 +278,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
         task_results[task_id] = {
             "status": "Completed",
             "progress": 100,
-            "message": "Main logic executed successfully.",
+            "message": "Main logic executed successfully. Limiting to 20 tasks.",
             "giftcodes": get_giftcodes(),
             "players": get_players(),
             "new_codes": new_codes_true
