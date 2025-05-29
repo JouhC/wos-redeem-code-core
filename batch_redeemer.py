@@ -164,14 +164,17 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
     try:
         def update_progress(progress: int):
             task_results[task_id]["progress"] += progress
-        
+
+        global player_api
+        if player_api is not None:
+            await player_api.close_session()
+
+        player_api = PlayerAPI()  
+
         if os.path.exists(CACHE_DIR):
             process_cache()
             backup_db()
             clear_cache()
-
-        global player_api
-        player_api = PlayerAPI()
 
         # Step 1: Fetch subscribed players
         task_results[task_id] = {"status": "Processing", "progress": 0}
