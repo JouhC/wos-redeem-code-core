@@ -112,8 +112,7 @@ class PlayerAPI:
             except Exception as e:
                 logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
                 continue
-            finally:
-                return captcha_response
+        return captcha_response
 
     async def redeem_code(self, player_id, code, captcha_solution, salt, delay=1, max_retries=5):
         """Redeems a gift code for a logged-in player with retry on 429 Too Many Requests."""
