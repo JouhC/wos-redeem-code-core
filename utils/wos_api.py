@@ -124,6 +124,7 @@ class PlayerAPI:
 
         redeem_request_data = self.players_data[player_id]["request_data"].copy()
         redeem_request_data["cdk"] = code
+        result = None
 
         retries = 0
         
