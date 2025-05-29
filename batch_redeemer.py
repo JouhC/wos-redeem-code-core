@@ -287,7 +287,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
         task_results[task_id] = {"status": "Failed", "progress": 100, "error": str(e)}
     
     finally:
-        player_api.close_session()
+        await player_api.close_session()
         if os.path.exists(CACHE_DIR):
             process_cache()
             backup_db()
