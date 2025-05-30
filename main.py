@@ -269,9 +269,9 @@ async def get_task_inprogress():
     if task_results:
         for _, task_id in enumerate(task_results):
             if task_results[task_id]['status'] == 'Processing':
-                return task_id
+                return {"result":True, "task_id": task_id}
 
-    return None
+    return {"result":False}
 
 @app.post("/task_status/reset")
 def reset():

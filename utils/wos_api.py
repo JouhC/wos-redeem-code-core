@@ -63,6 +63,9 @@ class PlayerAPI:
                 logger.info(f"Network error for player {player_id}: {e}")
             except Exception as e:
                 logger.info(f"Unexpected error for player {player_id}: {e}")
+            finally:
+                retries += 1
+                await asyncio.sleep(backoff)
 
         return None
     
@@ -99,6 +102,12 @@ class PlayerAPI:
                     if captcha_response.get("err_code") == 40009:
                         self.players_data.pop(player_id, None)
                         login_player = await self.login_player(player_id, salt)
+                        continue
+
+                    if captcha_response.get("err_code") == 40100:
+                        logger.info(f"Captcha Get too Frequent {player_id}.")
+                        await asyncio.sleep(60)
+                        continue
 
                     if captcha_response.get("msg") != "SUCCESS":
                         logger.info(f"Captcha retrieval failed for player {player_id}: {captcha_response}")
@@ -112,6 +121,9 @@ class PlayerAPI:
             except Exception as e:
                 logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
                 continue
+            finally:
+                retries += 1
+                await asyncio.sleep(backoff)
         return captcha_response
 
     async def redeem_code(self, player_id, code, captcha_solution, salt, delay=1, max_retries=5):
@@ -153,7 +165,9 @@ class PlayerAPI:
             except Exception as e:
                 logger.warning(f"Unexpected error during redemption for player {player_id}: {e}")
                 result = None
-
+            finally:
+                retries += 1
+                await asyncio.sleep(delay)
         return result
  
 

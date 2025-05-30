@@ -98,6 +98,7 @@ async def process(fid, code, update_progress, progress_multiplier):
         return None
     
     retries = 0
+    result = None
 
     while retries < 4:
         retries += 1
@@ -147,150 +148,106 @@ async def process(fid, code, update_progress, progress_multiplier):
     await asyncio.sleep(BATCH_DELAY)
 
 async def worker(queue, update_progress, progress_multiplier):
-    """Worker function to process items from the queue."""
-    while True:
-        item = await queue.get()
-        if item is None:
-            queue.task_done()
-            break  # graceful exit
-
-        fid, code = item
-        try:
-            await process(fid, code, update_progress, progress_multiplier)  # your actual redeem logic
-        finally:
-            queue.task_done()
-
-async def main(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None):
     try:
-        def update_progress(progress: int):
-            task_results[task_id]["progress"] += progress
+        while True:
+            item = await queue.get()
+            if item is None:
+                queue.task_done()
+                break
 
-        global player_api
-        if player_api is not None:
-            await player_api.close_session()
+            fid, code = item
+            try:
+                await process(fid, code, update_progress, progress_multiplier)
+            finally:
+                queue.task_done()
+    except asyncio.CancelledError:
+        print("Worker was cancelled.")
+        raise
 
-        player_api = PlayerAPI()  
+async def _main_logic(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None):
+    def update_progress(progress: int):
+        task_results[task_id]["progress"] += progress
 
-        if os.path.exists(CACHE_DIR):
-            process_cache()
-            backup_db()
-            clear_cache()
+    global player_api
+    if player_api is not None:
+        await player_api.close_session()
+    player_api = PlayerAPI()
 
-        # Step 1: Fetch subscribed players
-        task_results[task_id] = {"status": "Processing", "progress": 0}
-        players = get_players()
-        if not players:
-            task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No subscribed players found. Exiting."}
-            return
-        update_progress(10)
+    if os.path.exists(CACHE_DIR):
+        process_cache()
+        backup_db()
+        clear_cache()
 
-        # Step 2: Fetch new gift codes
-        new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
-        new_codes_true = []
-        for code in new_codes:
-            gc_response = add_giftcode(code)
-            if gc_response is not None:
-                new_codes_true.append(gc_response)
-        all_codes = get_giftcodes()
-        update_progress(10)
+    task_results[task_id] = {"status": "Processing", "progress": 0}
+    players = get_players()
+    if not players:
+        task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No subscribed players found. Exiting."}
+        return []
+    update_progress(10)
 
-        queue = asyncio.Queue()
-        if default_player:
-            unredeemed_df = pd.DataFrame({
-                                "fid": [default_player] * len(all_codes),
-                                "code": all_codes
-                            })
-            if unredeemed_df.empty:
-                task_results[task_id] = {
-                    "status": "Completed",
-                    "progress": 100,
-                    "message": f"No unredeemed codes found for player {default_player}. Exiting.",
-                    "giftcodes": all_codes,
-                    "players": players,
-                    "new_codes": new_codes_true
-                }
-                return
-            update_progress(10)
-        else:
-            # Get unredeemed codes
-            unredeemed_data = get_unredeemed_code_player_list()
-            if not unredeemed_data:
-                task_results[task_id] = {
-                    "status": "Completed",
-                    "progress": 100,
-                    "message": "No unredeemed codes found. Exiting.",
-                    "giftcodes": all_codes,
-                    "players": players,
-                    "new_codes": new_codes_true
-                }
-                return
-            update_progress(10)
+    new_codes = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
+    new_codes_true = [code for code in (add_giftcode(c) for c in new_codes) if code is not None]
+    all_codes = get_giftcodes()
+    update_progress(10)
 
-            # Convert to DataFrame and process redemptions
-            unredeemed_df = pd.DataFrame(unredeemed_data)
-        
-        if n:
-            unredeemed_df = unredeemed_df.sample(n=n)
-            if unredeemed_df.empty:
-                task_results[task_id] = {
-                    "status": "Completed",
-                    "progress": 100,
-                    "message": f"No unredeemed codes found for the sample size {n}. Exiting.",
-                    "giftcodes": all_codes,
-                    "players": players,
-                    "new_codes": new_codes_true
-                }
-                return
-        
-        unredeemed_df = unredeemed_df.head(20)
+    if default_player:
+        unredeemed_df = pd.DataFrame({"fid": [default_player] * len(all_codes), "code": all_codes})
+    else:
+        unredeemed_data = get_unredeemed_code_player_list()
+        if not unredeemed_data:
+            task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No unredeemed codes found. Exiting.", "giftcodes": all_codes, "players": players, "new_codes": new_codes_true}
+            return []
+        unredeemed_df = pd.DataFrame(unredeemed_data)
 
-        # Create a shared queue
-        queue = asyncio.Queue()
+    if n:
+        unredeemed_df = unredeemed_df.sample(n=n)
+    unredeemed_df = unredeemed_df.head(20)
+    if unredeemed_df.empty:
+        task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No unredeemed codes to process.", "giftcodes": all_codes, "players": players, "new_codes": new_codes_true}
+        return []
 
-        # Create a progress multiplier based on the number of unredeemed codes
-        progress_multiplier = int(50 / len(unredeemed_df))
+    queue = asyncio.Queue()
+    progress_multiplier = int(50 / len(unredeemed_df))
 
-        # Start worker tasks before putting items into the queue
-        workers = [
-            asyncio.create_task(worker(queue, update_progress, progress_multiplier))
-            for _ in range(MAX_WORKERS)
-        ]
+    workers = [asyncio.create_task(worker(queue, update_progress, progress_multiplier)) for _ in range(MAX_WORKERS)]
+    code_to_fids = defaultdict(list)
+    for _, row in unredeemed_df.iterrows():
+        code_to_fids[row["code"]].append(row["fid"])
 
-        # Group fids per code
-        code_to_fids = defaultdict(list)
-        for _, row in unredeemed_df.iterrows():
-            code_to_fids[row["code"]].append(row["fid"])
-
-        # Enqueue and process per code
+    try:
         for code, fids in code_to_fids.items():
             for fid in fids:
                 queue.put_nowait((fid, code))
-
-            # Wait until current batch is done
             await queue.join()
-            print(f"Finished code {code}, moving to next.")
 
-        # Stop workers cleanly by sending sentinel
+    finally:
         for _ in range(MAX_WORKERS):
             queue.put_nowait(None)
+        await asyncio.gather(*workers, return_exceptions=True)
 
-        # Wait for workers to finish
-        await asyncio.gather(*workers)
+    task_results[task_id] = {"status": "Completed", "progress": 100, "message": "Main logic executed successfully. Limiting to 20 tasks.", "giftcodes": get_giftcodes(), "players": get_players(), "new_codes": new_codes_true}
+    return workers
 
-        # Store task result
-        task_results[task_id] = {
-            "status": "Completed",
-            "progress": 100,
-            "message": "Main logic executed successfully. Limiting to 20 tasks.",
-            "giftcodes": get_giftcodes(),
-            "players": get_players(),
-            "new_codes": new_codes_true
-        }
-    except Exception as e:
-        task_results[task_id] = {"status": "Failed", "progress": 100, "error": str(e)}
-    
+async def main(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None, timeout=300):
+    global player_api
+    workers = []
+    try:
+        async def _wrapped_logic():
+            nonlocal workers
+            workers = await _main_logic(task_results, task_id, salt, default_player, n)
+
+        await asyncio.wait_for(_wrapped_logic(), timeout=timeout)
+
+    except asyncio.TimeoutError:
+        task_results[task_id] = {"status": "Partially Sucess", "progress": 100, "error": f"Timeout: Task exceeded {timeout} seconds.", "giftcodes": get_giftcodes(), "players": get_players()}
+        print("⏰ Timeout reached. Cancelling workers...")
+        for w in workers:
+            w.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+
     finally:
-        await player_api.close_session()
+        if player_api:
+            await player_api.close_session()
         if os.path.exists(CACHE_DIR):
             process_cache()
             backup_db()
