@@ -98,6 +98,7 @@ async def process(fid, code, update_progress, progress_multiplier):
         return None
     
     retries = 0
+    result = None
 
     while retries < 4:
         retries += 1
