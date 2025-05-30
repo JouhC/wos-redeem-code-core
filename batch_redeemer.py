@@ -201,7 +201,7 @@ async def _main_logic(task_results: dict, task_id: str, salt: str, default_playe
 
     if n:
         unredeemed_df = unredeemed_df.sample(n=n)
-    unredeemed_df = unredeemed_df.head(20)
+    unredeemed_df = unredeemed_df.sample(n=min(20, len(unredeemed_df)))  # Limit to 20 tasks
     if unredeemed_df.empty:
         task_results[task_id] = {"status": "Completed", "progress": 100, "message": "No unredeemed codes to process.", "giftcodes": all_codes, "players": players, "new_codes": new_codes_true}
         return []
@@ -239,7 +239,7 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
         await asyncio.wait_for(_wrapped_logic(), timeout=timeout)
 
     except asyncio.TimeoutError:
-        task_results[task_id] = {"status": "Partially Sucess", "progress": 100, "error": f"Timeout: Task exceeded {timeout} seconds.", "giftcodes": get_giftcodes(), "players": get_players()}
+        task_results[task_id] = {"status": "Timeout", "progress": 100, "error": f"Timeout: Task exceeded {timeout} seconds.", "giftcodes": get_giftcodes(), "players": get_players()}
         print("⏰ Timeout reached. Cancelling workers...")
         for w in workers:
             w.cancel()
