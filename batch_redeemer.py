@@ -305,7 +305,9 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
         task_results[task_id] = {
             "status": "Failed",
             "progress": 100,
-            "error": f"Timeout: Task exceeded {timeout} seconds."
+            "error": f"Timeout: Task exceeded {timeout} seconds.",
+            "giftcodes": get_giftcodes(),
+            "players": get_players()
         }
     finally:
         if player_api:
