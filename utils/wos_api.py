@@ -23,28 +23,26 @@ class PlayerAPI:
     async def login_player(self, player_id, salt, max_retries=5):
         """Logs in a player and stores request data for reuse."""
         if player_id in self.players_data:
-            return self.players_data[player_id]  # Skip re-login if already logged in
+            return self.players_data[player_id]  # Already logged in
 
         request_data = {
             "fid": player_id,
-            "time": int(time.time() * 1000)  # Convert to milliseconds
+            "time": int(time.time() * 1000)
         }
         request_data["sign"] = hashlib.md5(
             f"fid={request_data['fid']}&time={request_data['time']}{salt}".encode("utf-8")
         ).hexdigest()
 
-        retries = 0
-        backoff = 1  # Start with 1 second backoff
+        backoff = 1
 
-        while retries <= max_retries:
+        for attempt in range(1, max_retries + 1):
             try:
                 async with self.session.post(f"{URL}/player", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
                     if response.status == 429:
-                        logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
+                        logger.warning(f"Player {player_id}: Rate limited (attempt {attempt}). Retrying in {backoff} seconds...")
                         await asyncio.sleep(backoff)
-                        backoff *= 2  # Exponential backoff
-                        retries += 1
-                        continue  # Retry request
+                        backoff *= 2
+                        continue
 
                     response.raise_for_status()
                     login_response = await response.json()
@@ -53,6 +51,7 @@ class PlayerAPI:
                         logger.info(f"Login failed for player {player_id}: {login_response}")
                         return None
 
+                    # Cache and return on success
                     self.players_data[player_id] = {
                         "token": login_response.get("data", {}),
                         "request_data": request_data
@@ -60,115 +59,115 @@ class PlayerAPI:
                     return self.players_data[player_id]
 
             except aiohttp.ClientError as e:
-                logger.info(f"Network error for player {player_id}: {e}")
+                logger.info(f"Network error for player {player_id} on attempt {attempt}: {e}")
             except Exception as e:
-                logger.info(f"Unexpected error for player {player_id}: {e}")
-            finally:
-                retries += 1
-                await asyncio.sleep(backoff)
+                logger.info(f"Unexpected error for player {player_id} on attempt {attempt}: {e}")
 
+            await asyncio.sleep(backoff)
+            backoff *= 2  # Double backoff even on other exceptions
+
+        logger.error(f"Login failed after {max_retries} attempts for player {player_id}")
         return None
+
     
     async def get_captcha(self, player_id, salt, delay=2, max_retries=5):
-        """Get CAPTCHA then solve it for a logged-in player with retry on 429 Too Many Requests."""
+        """Get CAPTCHA for a logged-in player with retry logic on rate limits and specific error codes."""
         if player_id not in self.players_data:
             logger.info(f"Error: Player {player_id} is not logged in.")
             return None
-        
-        if 'to_solve' in self.players_data[player_id]:
-            await asyncio.sleep(30)
-        else:
-            await asyncio.sleep(delay)
 
-        captcha_request_data = self.players_data[player_id]["request_data"].copy()
+        # Wait longer if CAPTCHA is already being solved
+        await asyncio.sleep(30 if 'to_solve' in self.players_data[player_id] else delay)
 
-        retries = 0
-        backoff = 1  # Start with 1 second backoff
-        captcha_response = None
+        request_data = self.players_data[player_id]["request_data"].copy()
+        backoff = 1
 
-        while retries <= max_retries:
+        for attempt in range(1, max_retries + 1):
             try:
-                async with self.session.post(f"{URL}/captcha", json=captcha_request_data, headers=HTTP_HEADER, timeout=30) as response:
+                async with self.session.post(f"{URL}/captcha", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
                     if response.status == 429:
-                        logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
+                        logger.warning(f"Player {player_id}: Rate limited (attempt {attempt}). Retrying in {backoff} seconds...")
                         await asyncio.sleep(backoff)
-                        backoff *= 2  # Exponential backoff
-                        retries += 1
-                        continue  # Retry request
+                        backoff *= 2
+                        continue
 
                     response.raise_for_status()
                     captcha_response = await response.json()
 
-                    if captcha_response.get("err_code") == 40009:
+                    err_code = captcha_response.get("err_code")
+                    msg = captcha_response.get("msg")
+
+                    if err_code == 40009:
+                        logger.info(f"Token expired for {player_id}. Re-logging in.")
                         self.players_data.pop(player_id, None)
-                        login_player = await self.login_player(player_id, salt)
+                        await self.login_player(player_id, salt)
                         continue
 
-                    if captcha_response.get("err_code") == 40100:
-                        logger.info(f"Captcha Get too Frequent {player_id}.")
-                        await asyncio.sleep(60)
+                    if err_code == 40100:
+                        logger.info(f"Captcha Get too Frequent for {player_id}. Waiting 60s.")
+                        await asyncio.sleep(30)
                         continue
 
-                    if captcha_response.get("msg") != "SUCCESS":
+                    if msg != "SUCCESS":
                         logger.info(f"Captcha retrieval failed for player {player_id}: {captcha_response}")
                         return None
-                    
-                    self.players_data[player_id]['to_solve'] = captcha_response
-    
+
+                    self.players_data[player_id]["to_solve"] = captcha_response
+                    return captcha_response  # Success
+
             except aiohttp.ClientError as e:
-                logger.info(f"Captcha - Network error for player {player_id}: {e}")
-                continue
+                logger.info(f"Captcha - Network error for player {player_id} on attempt {attempt}: {e}")
             except Exception as e:
-                logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
-                continue
-            finally:
-                retries += 1
-                await asyncio.sleep(backoff)
-        return captcha_response
+                logger.info(f"Captcha - Unexpected error for player {player_id} on attempt {attempt}: {e}")
+
+            await asyncio.sleep(backoff)
+            backoff *= 2
+
+        logger.error(f"Failed to retrieve CAPTCHA for player {player_id} after {max_retries} attempts.")
+        return None
+
 
     async def redeem_code(self, player_id, code, captcha_solution, salt, delay=1, max_retries=5):
-        """Redeems a gift code for a logged-in player with retry on 429 Too Many Requests."""
+        """Redeems a gift code for a logged-in player with retry logic on rate limits."""
         if player_id not in self.players_data:
             logger.info(f"Error: Player {player_id} is not logged in.")
             return None
-        
+
         await asyncio.sleep(delay)
+        base_request_data = self.players_data[player_id]["request_data"].copy()
+        base_request_data["cdk"] = code
 
-        redeem_request_data = self.players_data[player_id]["request_data"].copy()
-        redeem_request_data["cdk"] = code
-        result = None
+        backoff = 1
 
-        retries = 0
-        
-        while retries <= max_retries:
+        for attempt in range(1, max_retries + 1):
             try:
-                redeem_request_data["captcha_code"] = captcha_solution
-                redeem_request_data["sign"] = hashlib.md5(
-                    f"captcha_code={redeem_request_data['captcha_code']}&cdk={redeem_request_data['cdk']}&fid={redeem_request_data['fid']}&time={redeem_request_data['time']}{salt}".encode("utf-8")
+                request_data = base_request_data.copy()
+                request_data["captcha_code"] = captcha_solution
+                request_data["sign"] = hashlib.md5(
+                    f"captcha_code={request_data['captcha_code']}&cdk={request_data['cdk']}&fid={request_data['fid']}&time={request_data['time']}{salt}".encode("utf-8")
                 ).hexdigest()
 
-                async with self.session.post(f"{URL}/gift_code", json=redeem_request_data, headers=HTTP_HEADER, timeout=30) as response:
+                async with self.session.post(f"{URL}/gift_code", json=request_data, headers=HTTP_HEADER, timeout=30) as response:
                     if response.status == 429:
-                        logger.warning(f"Player {player_id}: Rate limited. Retrying in {backoff} seconds...")
+                        logger.warning(f"Player {player_id}: Rate limited (attempt {attempt}). Retrying in {backoff} seconds...")
                         await asyncio.sleep(backoff)
-                        backoff *= 2  # Exponential backoff
-                        retries += 1
-                        continue  # Retry request
+                        backoff *= 2
+                        continue
 
                     response.raise_for_status()
-                    result = await response.json()
-                    break
+                    return await response.json()  # Success
 
             except aiohttp.ClientError as e:
-                logger.warning(f"Network error during redemption for player {player_id}: {e}")
-                result = None
+                logger.warning(f"Network error during redemption for player {player_id} (attempt {attempt}): {e}")
             except Exception as e:
-                logger.warning(f"Unexpected error during redemption for player {player_id}: {e}")
-                result = None
-            finally:
-                retries += 1
-                await asyncio.sleep(delay)
-        return result
+                logger.warning(f"Unexpected error during redemption for player {player_id} (attempt {attempt}): {e}")
+
+            await asyncio.sleep(backoff)
+            backoff *= 2
+
+        logger.error(f"Failed to redeem code for player {player_id} after {max_retries} attempts.")
+        return None
+
  
 
     async def close_session(self):
