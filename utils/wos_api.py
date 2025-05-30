@@ -115,6 +115,9 @@ class PlayerAPI:
             except Exception as e:
                 logger.info(f"Captcha - Unexpected error for player {player_id}: {e}")
                 continue
+            finally:
+                retries += 1
+                await asyncio.sleep(backoff)
         return captcha_response
 
     async def redeem_code(self, player_id, code, captcha_solution, salt, delay=1, max_retries=5):
@@ -156,7 +159,9 @@ class PlayerAPI:
             except Exception as e:
                 logger.warning(f"Unexpected error during redemption for player {player_id}: {e}")
                 result = None
-
+            finally:
+                retries += 1
+                await asyncio.sleep(delay)
         return result
  
 
