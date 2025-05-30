@@ -160,7 +160,7 @@ async def worker(queue, update_progress, progress_multiplier):
         finally:
             queue.task_done()
 
-async def main(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None):
+async def _main_logic(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None):
     try:
         def update_progress(progress: int):
             task_results[task_id]["progress"] += progress
@@ -291,6 +291,24 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
     
     finally:
         await player_api.close_session()
+        if os.path.exists(CACHE_DIR):
+            process_cache()
+            backup_db()
+            clear_cache()
+
+async def main(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None, timeout=300):
+    # Apply timeout to the core logic
+    try:
+        await asyncio.wait_for(_main_logic(task_results, task_id, salt, default_player, n), timeout=timeout)
+    except asyncio.TimeoutError:
+        task_results[task_id] = {
+            "status": "Failed",
+            "progress": 100,
+            "error": f"Timeout: Task exceeded {timeout} seconds."
+        }
+    finally:
+        if player_api:
+            await player_api.close_session()
         if os.path.exists(CACHE_DIR):
             process_cache()
             backup_db()
