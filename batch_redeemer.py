@@ -122,7 +122,7 @@ async def process(fid, code, update_progress, progress_multiplier):
             elif str(err_code) in error_codes:
                 logger.info(error_codes[str(err_code)]['message'])
                 if error_codes[str(err_code)]['captcha_error'] == True:
-                    asyncio.sleep(2)
+                    await asyncio.sleep(2)
                     continue
                 elif error_codes[str(err_code)]['success'] == True:
                     create_cache("redeemed_giftcode", {"fid": fid, "code": code})
@@ -133,14 +133,14 @@ async def process(fid, code, update_progress, progress_multiplier):
                     create_cache("success_captcha", {"captcha_id": captcha_id})
                     break
                 else:
-                    asyncio.sleep(2)
+                    await asyncio.sleep(2)
                     continue
             else:
                 logger.info(error_codes['default']['message'])
                 logger.info(result)
         else:
             logger.info("None Response!")
-        asyncio.sleep(10)
+        await asyncio.sleep(10)
 
     update_progress(progress_multiplier)
     logger.info(f"[{fid} | {code}] -> {result}")
