@@ -63,6 +63,9 @@ class PlayerAPI:
                 logger.info(f"Network error for player {player_id}: {e}")
             except Exception as e:
                 logger.info(f"Unexpected error for player {player_id}: {e}")
+            finally:
+                retries += 1
+                await asyncio.sleep(backoff)
 
         return None
     
