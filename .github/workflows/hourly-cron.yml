@@ -2,7 +2,7 @@ name: Cron Job for Backup and Automation
 
 on:
   schedule:
-    - cron: "0 */6 * * *"  # Runs every 6 hours
+    - cron: "0 * * * *"  # Runs every hour
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
@@ -89,7 +89,7 @@ jobs:
 
         echo "Tracking progress for Task ID: $TASK_ID"
         START_TIME=$(date +%s)
-        TIMEOUT=300  # 5 minutes in seconds
+        TIMEOUT=600  # 10 minutes in seconds
 
         while true; do
           CURRENT_TIME=$(date +%s)
