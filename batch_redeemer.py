@@ -263,7 +263,7 @@ async def _main_logic(task_results: dict, task_id: str, progress_cb, salt: str, 
         }
         return []
 
-    workers = await process_unredeemed_df(unredeemed_df, progress_cb, progress_share=50)
+    workers = await process_unredeemed_df(unredeemed_df, progress_cb, progress_share= 100 - task_results.get(task_id, {}).get("progress", 0))
     return workers
 
 async def main(task_results: dict, task_id: str, salt: str, default_player: str = None, n: int = None, timeout=300):
