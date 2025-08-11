@@ -191,9 +191,15 @@ async def set_inactive(code: GiftCodeSetStatusInactive):
     
 @app.post("/giftcodes/expired-check/")
 async def expired_codes():
+    if task_results:
+        for _, task_id in enumerate(task_results):
+            if task_results[task_id]['status'] == 'Processing':
+                return {"error": "A task is already in progress. Please wait until it completes."}
+            
     task_id = str(uuid.uuid4())
     task_results[task_id] = {"status": "Processing", "progress": 0}
 
+    logger.info("Checking for expired gift codes...")
     # Run automation logic asynchronously in the background
     asyncio.create_task(batch_redeemer.main(task_results, task_id, salt=os.getenv("SALT"), default_player=DEFAULT_PLAYER))
 
@@ -241,16 +247,21 @@ async def automate_all(request: AutomationRequest):
     Starts the automate-all process and returns a task ID.
     The client should poll `/task_status/{task_id}` to get updates.
     """
+    if task_results:
+        for _, task_id in enumerate(task_results):
+            if task_results[task_id]['status'] == 'Processing':
+                return {"error": "A task is already in progress. Please wait until it completes."}
+    
     task_id = str(uuid.uuid4())
     task_results[task_id] = {"status": "Processing", "progress": 0}
 
     if request.n == "all":
-        n = None
+        n = 20
     else:
         n = int(request.n)
 
     # Run automation logic asynchronously in the background
-    asyncio.create_task(batch_redeemer.main(task_results, task_id, salt=os.getenv("SALT"), default_player=None, n=n))
+    asyncio.create_task(batch_redeemer.main(task_results, task_id, salt=os.getenv("SALT"), default_player=DEFAULT_PLAYER, n=n))
 
     return {"task_id": task_id, "status": "Processing", "progress": 0}
 

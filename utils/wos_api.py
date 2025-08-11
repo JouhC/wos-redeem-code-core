@@ -168,7 +168,6 @@ class PlayerAPI:
         logger.error(f"Failed to redeem code for player {player_id} after {max_retries} attempts.")
         return None
 
- 
 
     async def close_session(self):
         """Closes the session when done."""
