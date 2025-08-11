@@ -163,9 +163,9 @@ def add_giftcode(code):
 
     try:
         cursor.execute("""
-            INSERT INTO giftcodes (code, created_date, status)
-            VALUES (?, ?, ?)
-        """, (code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Active"))
+            INSERT INTO giftcodes (code, created_date, status, last_checked)
+            VALUES (?, ?, ?, ?)
+        """, (code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Active", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
         logger.info(f"Gift code '{code}' added successfully.")
     except sqlite3.IntegrityError:
@@ -183,6 +183,22 @@ def get_giftcodes():
     codes = [row[0] for row in cursor.fetchall()]
     conn.close()
     return codes
+
+
+def get_giftcodes_unchecked():
+    """Retrieve all gift codes that have not been checked in the last 24 hours."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT code
+        FROM giftcodes
+        WHERE status = 'Active'
+        AND last_checked <= datetime('now', '-1 day')
+    """)
+    codes = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return codes
+
 
 def deactivate_giftcode(code):
     """Set the status of a specific gift code to 'Inactive'."""
