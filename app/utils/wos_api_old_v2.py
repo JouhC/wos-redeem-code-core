@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from itertools import islice
 from utils.captcha_solver import CaptchaSolver
-from db import update_captcha_feedback
+from app.db.database import update_captcha_feedback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

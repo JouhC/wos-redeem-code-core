@@ -1,4 +1,4 @@
-from db.database import (
+from app.db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list,
     record_captcha, update_captcha_feedback
