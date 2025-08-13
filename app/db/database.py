@@ -1,3 +1,4 @@
+from app.core.config import settings
 from datetime import datetime
 from pathlib import Path
 import logging
@@ -292,8 +293,8 @@ def get_unredeemed_code_player_list():
             FROM players p
             CROSS JOIN giftcodes g
             LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
-            WHERE r.code IS NULL AND g.status = 'Active'
-        """)
+            WHERE r.code IS NULL AND g.status = 'Active' AND p.fid != ?
+        """, (settings.DEFAULT_PLAYER,))
         unredeemed_codes_players = [dict(row) for row in cursor.fetchall()]
     finally:
         conn.close()
