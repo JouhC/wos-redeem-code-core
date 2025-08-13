@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.api.dependencies import require_ready
 from app.schemas.players import Player
 from app.db.database import get_players, add_player, remove_player, update_player
 from app.utils.wos_api import PlayerAPI
 from app.utils.rclone import backup_db
 from app.core.config import settings
 
-router = APIRouter(prefix="/players", tags=["players"])
+router = APIRouter(prefix="/players", tags=["players"], dependencies=[Depends(require_ready)])
 
 @router.get("")
 async def list_players():

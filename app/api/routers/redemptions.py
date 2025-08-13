@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.api.dependencies import require_ready
 from app.schemas.redemptions import RedemptionRequest
 from app.db.database import get_giftcodes, get_redeemed_codes, record_redemption
 from app.utils.wos_api import PlayerAPI
 from app.utils.rclone import backup_db
 from app.core.config import settings
 
-router = APIRouter(prefix="/players", tags=["redemptions"])
+router = APIRouter(prefix="/players", tags=["redemptions"], dependencies=[Depends(require_ready)])
 
 @router.post("/redeem")
 async def redeem_giftcode(req: RedemptionRequest):

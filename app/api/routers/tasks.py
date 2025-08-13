@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.api.dependencies import require_ready
 from app.services.jobs import task_results, has_inflight_task, start_job
 from app.schemas.tasks import AutomationRequest
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_ready)])
 
 @router.post("/expired-check")
 async def expired_codes():
