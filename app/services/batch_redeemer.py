@@ -1,18 +1,19 @@
-from db.database import (
+from app.db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list,
     record_captcha, update_captcha_feedback
 )
-from utils.fetch_gc_async import fetch_latest_codes_async
-from utils.rclone import backup_db
-from utils.wos_api import PlayerAPI
-import asyncio
-import logging
-import pandas as pd
-from utils.captcha_solver import CaptchaSolver
-import os
-import json
+from app.utils.captcha_solver import CaptchaSolver
+from app.utils.fetch_gc_async import fetch_latest_codes_async
+from app.utils.rclone import backup_db
+from app.utils.wos_api import PlayerAPI
+from app.core.config import settings
 from collections import defaultdict
+import asyncio
+import json
+import logging
+import os
+import pandas as pd
 import shutil
 
 # Configure logging
@@ -26,7 +27,7 @@ BATCH_DELAY = 1           # 1 second delay
 MAX_WORKERS = 3           # adjust based on your rate limit
 SALT = os.getenv("SALT")
 CACHE_DIR = "./cache"
-error_codes = json.load(open("error_codes.json", "r"))
+error_codes = json.load(open(settings.ERROR_CODES_FILE, "r"))
 
 def make_progress_updater(task_results: dict, task_id: str):
     """Returns a function inc(delta) that increments progress safely."""

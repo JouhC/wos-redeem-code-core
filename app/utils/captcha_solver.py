@@ -1,6 +1,6 @@
 import ddddocr
 import base64
-from db import record_captcha
+from app.db.database import record_captcha
 
 class CaptchaSolver:
     def __init__(self):

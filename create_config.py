@@ -1,6 +1,6 @@
 import os
 import pexpect
-from utils.rclone import sync_db
+from app.utils.rclone import sync_db
 import time
 
 MAX_RETRIES = 3
