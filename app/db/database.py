@@ -35,7 +35,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE NOT NULL,
             created_date TEXT,
-            status TEXT CHECK (Status IN ('Active', 'Inactive')) 
+            status TEXT CHECK (Status IN ('Active', 'Inactive')),
+            last_checked TEXT DEFAULT (datetime('now', 'localtime') 
         )
     """)
 
@@ -322,6 +323,22 @@ def update_captcha_feedback(captcha_id):
         cursor.execute("UPDATE captchas SET feedback = TRUE WHERE id = ?", (captcha_id,))
         conn.commit()
         logger.info(f"Captcha ID '{captcha_id}' feedback set to TRUE.")
+    finally:
+        conn.close()
+
+def update_giftcode_checkedtime(code):
+    """Update the last checked time for a specific gift code."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE giftcodes
+            SET last_checked = ?
+            WHERE code = ?
+        """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), code))
+        conn.commit()
+        logger.info(f"Gift code '{code}' last checked time updated.")
     finally:
         conn.close()
 
