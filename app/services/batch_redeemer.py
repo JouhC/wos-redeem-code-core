@@ -1,18 +1,19 @@
-from db.database import (
+from app.db.database import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list,
-    record_captcha, update_captcha_feedback
+    record_captcha, update_captcha_feedback, update_giftcode_checkedtime
 )
-from utils.fetch_gc_async import fetch_latest_codes_async
-from utils.rclone import backup_db
-from utils.wos_api import PlayerAPI
-import asyncio
-import logging
-import pandas as pd
-from utils.captcha_solver import CaptchaSolver
-import os
-import json
+from app.utils.captcha_solver import CaptchaSolver
+from app.utils.fetch_gc_async import fetch_latest_codes_async
+from app.utils.rclone import backup_db
+from app.utils.wos_api import PlayerAPI
+from app.core.config import settings
 from collections import defaultdict
+import asyncio
+import json
+import logging
+import os
+import pandas as pd
 import shutil
 
 # Configure logging
@@ -26,7 +27,7 @@ BATCH_DELAY = 1           # 1 second delay
 MAX_WORKERS = 3           # adjust based on your rate limit
 SALT = os.getenv("SALT")
 CACHE_DIR = "./cache"
-error_codes = json.load(open("error_codes.json", "r"))
+error_codes = json.load(open(settings.ERROR_CODES_FILE, "r"))
 
 def make_progress_updater(task_results: dict, task_id: str):
     """Returns a function inc(delta) that increments progress safely."""
@@ -46,6 +47,8 @@ def create_cache(cache_type, data):
         cache_file = os.path.join(CACHE_DIR, "success_captcha.json")
     elif cache_type == "players":
         cache_file = os.path.join(CACHE_DIR, "players.json")
+    elif cache_type == "checked_giftcode":
+        cache_file = os.path.join(CACHE_DIR, "checked_giftcode.json")
     else:
         raise ValueError(f"Unknown cache_type: {cache_type}")
 
@@ -67,7 +70,7 @@ def create_cache(cache_type, data):
         json.dump(existing_data, f, indent=2)
 
 def process_cache():
-    cache_files = ["expired_giftcode.json", "redeemed_giftcode.json", "success_captcha.json", "players.json"]
+    cache_files = ["expired_giftcode.json", "redeemed_giftcode.json", "success_captcha.json", "players.json", "checked_giftcode.json"]
     for cache_file in cache_files:
         file_path = os.path.join(CACHE_DIR, cache_file)
         if os.path.exists(file_path):
@@ -83,6 +86,8 @@ def process_cache():
                     elif cache_file == "players.json":
                         # expect item like {"fid": "...", "token": "..."} or similar
                         update_player(item)
+                    elif cache_file == "checked_giftcode.json":
+                        update_giftcode_checkedtime(item['code'])
             os.remove(file_path)
 
 def clear_cache():
@@ -126,6 +131,8 @@ async def process(fid, code, progress_cb, progress_multiplier):
                 logger.info(f"Code redeemed successfully for {fid}: {code}")
                 create_cache("redeemed_giftcode", {"fid": fid, "code": code})
                 create_cache("success_captcha", {"captcha_id": captcha_id})
+                if fid == settings.DEFAULT_PLAYER:
+                    create_cache("checked_giftcode", {"code": code})
                 break
 
             elif str(err_code) in error_codes:
@@ -137,10 +144,14 @@ async def process(fid, code, progress_cb, progress_multiplier):
                 elif ec.get('success'):
                     create_cache("redeemed_giftcode", {"fid": fid, "code": code})
                     create_cache("success_captcha", {"captcha_id": captcha_id})
+                    if fid == settings.DEFAULT_PLAYER:
+                        create_cache("checked_giftcode", {"code": code})
                     break
                 elif ec.get('expired'):
                     create_cache("expired_giftcode", {"code": code})
                     create_cache("success_captcha", {"captcha_id": captcha_id})
+                    if fid == settings.DEFAULT_PLAYER:
+                        create_cache("checked_giftcode", {"code": code})
                     break
                 else:
                     await asyncio.sleep(2)

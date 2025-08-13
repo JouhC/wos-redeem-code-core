@@ -6,7 +6,7 @@ from db.database import (
     init_db, add_player, remove_player, get_players, add_giftcode, get_giftcodes, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player
 )
-import batch_redeemer
+import app.services.batch_redeemer as batch_redeemer
 from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
