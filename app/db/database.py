@@ -133,24 +133,36 @@ def get_players():
     cursor = conn.cursor()
     # Query to get players with redemption status for active gift codes
     cursor.execute("""
-                SELECT 
-                    p.id AS player_id,
-                    p.fid,
-                    p.nickname,
-                    p.kid,
-                    p.stove_lv,
-                    p.stove_lv_content,
-                    p.avatar_image,
-                    p.total_recharge_amount,
-                    p.subscribed_date,
-                    CASE 
-                        WHEN COUNT(g.code) = COUNT(r.code) THEN 1 
-                        ELSE 0 
-                    END AS redeemed_all
+                WITH active_codes AS (
+                SELECT code FROM giftcodes WHERE status = 'Active'
+                ),
+                active_count AS (
+                SELECT COUNT(*) AS n FROM active_codes
+                ),
+                player_redeemed AS (
+                SELECT r.player_id, COUNT(DISTINCT r.code) AS redeemed_count
+                FROM redemptions r
+                JOIN active_codes a ON a.code = r.code
+                GROUP BY r.player_id
+                )
+                SELECT
+                p.id AS player_id,
+                p.fid,
+                p.nickname,
+                p.kid,
+                p.stove_lv,
+                p.stove_lv_content,
+                p.avatar_image,
+                p.total_recharge_amount,
+                p.subscribed_date,
+                CASE
+                    WHEN ac.n = 0 THEN 0                      -- or 1, depending on your policy
+                    WHEN COALESCE(pr.redeemed_count, 0) = ac.n THEN 1
+                    ELSE 0
+                END AS redeemed_all
                 FROM players p
-                LEFT JOIN giftcodes g ON g.status = 'Active'
-                LEFT JOIN redemptions r ON p.fid = r.player_id AND g.code = r.code
-                GROUP BY p.id
+                CROSS JOIN active_count ac
+                LEFT JOIN player_redeemed pr ON pr.player_id = p.fid
             """)
 
     players = [dict(row) for row in cursor.fetchall()]
