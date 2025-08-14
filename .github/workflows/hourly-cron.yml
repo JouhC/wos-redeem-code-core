@@ -43,7 +43,7 @@ jobs:
         API_URL: ${{ secrets.API_URL }}
       run: |
         echo "Checking for in-progress task..."
-        INPROGRESS_TASK_ID=$(curl -s -L "$API_URL/task_status/check_inprogress/" | jq -r '.task_id')
+        INPROGRESS_TASK_ID=$(curl -s -L "$API_URL/tasks/inprogress/" | jq -r '.task_id')
 
         if [ "$INPROGRESS_TASK_ID" != "null" ]; then
           echo "Task already in progress: $INPROGRESS_TASK_ID"
@@ -62,7 +62,7 @@ jobs:
         API_URL: ${{ secrets.API_URL }}
       run: |
         echo "Starting a new task..."
-        RESPONSE=$(curl -s -L -X POST "$API_URL/automate-all/" \
+        RESPONSE=$(curl -s -L -X POST "$API_URL/tasks/automate-all/" \
           -H "Content-Type: application/json" \
           -d '{"n": "all"}')
 
@@ -100,7 +100,7 @@ jobs:
             exit 1
           fi
 
-          STATUS_RESPONSE=$(curl -s -L "$API_URL/task_status/$TASK_ID/")
+          STATUS_RESPONSE=$(curl -s -L "$API_URL/tasks/$TASK_ID/")
           PROGRESS=$(echo $STATUS_RESPONSE | jq -r '.progress')
           STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
 
