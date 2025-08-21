@@ -41,6 +41,12 @@
     "expired": false,
     "captcha_error": true
   },
+  "40018": {
+    "message": "RECHARGE_MONEY_VIP ERROR. The gift code is not valid for this user.",
+    "success": false,
+    "expired": true,
+    "captcha_error": false
+  },
   "default": {
     "message": "Redemption failed with unexpected error.",
     "success": false,
