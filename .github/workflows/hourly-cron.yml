@@ -2,7 +2,7 @@ name: Cron Job for Backup and Automation
 
 on:
   schedule:
-    - cron: "0 * * * *"  # Runs every hour
+    - cron: "0 */2 * * *"  # Runs every 2-hour
   workflow_dispatch:  # Allows manual triggering of the workflow
 
 jobs:
