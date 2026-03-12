@@ -13,6 +13,8 @@ URL = "https://wos-giftcode-api.centurygame.com/api"
 HTTP_HEADER = {
     "Content-Type": "application/json",
     "Accept": "application/json",
+    "Origin": "https://wos-giftcode.centurygame.com",
+    "Referer": "https://wos-giftcode.centurygame.com/",
 }
 
 class PlayerAPI:
