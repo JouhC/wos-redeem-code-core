@@ -168,47 +168,67 @@ async def process(fid, code, progress_cb, progress_multiplier):
     logger.info(f"[{fid} | {code}] -> {result}")
     await asyncio.sleep(BATCH_DELAY)
 
-async def worker(queue, progress_cb, progress_multiplier):
+
+async def worker(fid_queue, fid_to_codes, progress_cb, progress_multiplier):
     try:
         while True:
-            item = await queue.get()
-            if item is None:
-                queue.task_done()
+            fid = await fid_queue.get()
+            if fid is None:
+                fid_queue.task_done()
                 break
-            fid, code = item
+
             try:
-                await process(fid, code, progress_cb, progress_multiplier)
+                codes = fid_to_codes[fid]
+                for code in codes:
+                    await process(fid, code, progress_cb, progress_multiplier)
             finally:
-                queue.task_done()
+                fid_queue.task_done()
+
     except asyncio.CancelledError:
         logger.info("Worker was cancelled.")
         raise
 
+
 async def process_unredeemed_df(unredeemed_df: pd.DataFrame, progress_cb, progress_share=50):
-    """Run the queue/worker pipeline for the given DataFrame (cols: fid, code)."""
+    """
+    Process unredeemed rows with concurrency across unique fids only.
+    All codes for the same fid are processed sequentially by a single worker.
+    """
     if unredeemed_df is None or unredeemed_df.empty:
         return []
 
-    queue = asyncio.Queue()
-    progress_multiplier = max(1, int(progress_share / max(1, len(unredeemed_df))))
+    total_rows = len(unredeemed_df)
+    progress_multiplier = max(1, int(progress_share / max(1, total_rows)))
 
-    workers = [asyncio.create_task(worker(queue, progress_cb, progress_multiplier)) for _ in range(MAX_WORKERS)]
+    # Group by fid so each fid is handled by only one worker at a time
+    fid_to_codes = defaultdict(list)
+    for row in unredeemed_df.itertuples(index=False):
+        fid_to_codes[row.fid].append(row.code)
 
-    # Group by code to redeem per code across fids
-    code_to_fids = defaultdict(list)
-    for _, row in unredeemed_df.iterrows():
-        code_to_fids[row["code"]].append(row["fid"])
+    fid_queue = asyncio.Queue()
+
+    # enqueue unique fids only
+    for fid in fid_to_codes.keys():
+        await fid_queue.put(fid)
+
+    worker_count = min(MAX_WORKERS, len(fid_to_codes))
+    workers = [
+        asyncio.create_task(
+            worker(fid_queue, fid_to_codes, progress_cb, progress_multiplier)
+        )
+        for _ in range(worker_count)
+    ]
 
     try:
-        for code, fids in code_to_fids.items():
-            for fid in fids:
-                queue.put_nowait((fid, code))
-        await queue.join()
+        await fid_queue.join()
     finally:
-        for _ in range(MAX_WORKERS):
-            queue.put_nowait(None)
+        for _ in range(worker_count):
+            await fid_queue.put(None)
+
         await asyncio.gather(*workers, return_exceptions=True)
-        return workers
+
+    return []
+
 
 async def _run_default_player(progress_cb, default_player: str = None, n: int = None):
     """Run the default player through the queue/worker pipeline."""
