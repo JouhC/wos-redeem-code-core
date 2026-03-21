@@ -18,7 +18,7 @@ if not all([CLIENT_ID, CLIENT_SECRET, USER_AGENT]):
 
 def extract_code(post_text):
     """Extract the code from post text using regex."""
-    match = re.search(r"\*\*Code:\*\*\s*(\S+)", post_text, re.IGNORECASE)
+    match = re.search(r'Code:\s*(\S+)', post_text, re.IGNORECASE)
     return match.group(1) if match else None
 
 async def fetch_latest_codes_async(subreddit_name, keyword):
@@ -38,10 +38,12 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
         user_agent=USER_AGENT
     )
 
+    post_count = 0
     try:
         subreddit = await reddit.subreddit(subreddit_name)
         codes = []
         async for submission in subreddit.search(query=keyword.lower(), time_filter='month'):
+            post_count += 1
             if submission.is_self:
                 code = extract_code(submission.selftext)
                 if code:
@@ -52,6 +54,7 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
         return []
     finally:
         await reddit.close()  # Explicitly close Reddit client
+        logger.info(f"Total of {len(codes)} codes / {post_count} posts fetched.")
         logger.info("Reddit session closed.")
 
 async def main():
