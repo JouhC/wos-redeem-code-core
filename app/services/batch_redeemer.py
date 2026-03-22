@@ -172,7 +172,8 @@ async def process(fid, code, progress_cb, progress_multiplier):
 async def worker(fid_queue, fid_to_codes, progress_cb, progress_multiplier):
     try:
         while True:
-            fid = await fid_queue.get()
+            _, fid = await fid_queue.get()
+
             if fid is None:
                 fid_queue.task_done()
                 break
@@ -183,9 +184,7 @@ async def worker(fid_queue, fid_to_codes, progress_cb, progress_multiplier):
                     await process(fid, code, progress_cb, progress_multiplier)
             finally:
                 fid_queue.task_done()
-
     except asyncio.CancelledError:
-        logger.info("Worker was cancelled.")
         raise
 
 
@@ -193,6 +192,7 @@ async def process_unredeemed_df(unredeemed_df: pd.DataFrame, progress_cb, progre
     """
     Process unredeemed rows with concurrency across unique fids only.
     All codes for the same fid are processed sequentially by a single worker.
+    PRIORITY_ACCOUNT is always dequeued first when present.
     """
     if unredeemed_df is None or unredeemed_df.empty:
         return []
@@ -205,11 +205,12 @@ async def process_unredeemed_df(unredeemed_df: pd.DataFrame, progress_cb, progre
     for row in unredeemed_df.itertuples(index=False):
         fid_to_codes[row.fid].append(row.code)
 
-    fid_queue = asyncio.Queue()
+    fid_queue = asyncio.PriorityQueue()
 
-    # enqueue unique fids only
+    # enqueue unique fids with priority
     for fid in fid_to_codes.keys():
-        await fid_queue.put(fid)
+        priority = 0 if str(fid) == str(settings.PRIORITY_ACCOUNT) else 1
+        await fid_queue.put((priority, fid))
 
     worker_count = min(MAX_WORKERS, len(fid_to_codes))
     workers = [
@@ -223,7 +224,7 @@ async def process_unredeemed_df(unredeemed_df: pd.DataFrame, progress_cb, progre
         await fid_queue.join()
     finally:
         for _ in range(worker_count):
-            await fid_queue.put(None)
+            await fid_queue.put((999, None))  # sentinel
 
         await asyncio.gather(*workers, return_exceptions=True)
 

@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     DB_FILE: str
     RENDER: bool = False
     ERROR_CODES_FILE: str = "app/error_codes.json"
+    PRIORITY_ACCOUNT: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
