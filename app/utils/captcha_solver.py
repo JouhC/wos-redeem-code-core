@@ -1,56 +1,80 @@
+from PIL import Image
 import base64
 import io
-import cv2
+import json
 import numpy as np
-import ddddocr
+import onnxruntime as ort
 from app.db.database import record_captcha
+
+
+MODEL_PATH = "app/model/captcha_model.onnx"
+META_PATH = "app/model/captcha_model_metadata.json"
+
 
 class CaptchaSolver:
     def __init__(self):
-        self.ocr = ddddocr.DdddOcr(show_ad=False)
+        self.session = ort.InferenceSession(MODEL_PATH)
+        with open(META_PATH, "r", encoding="utf-8") as f:
+            self.metadata = json.load(f)
 
-    def preprocess_captcha(self, image_bytes: bytes) -> bytes:
-        # Convert bytes to OpenCV image
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    def preprocess_image(self, image: Image.Image):
+        channels, height, width = self.metadata["input_shape"]
 
-        if img is None:
-            raise ValueError("Failed to decode captcha image.")
+        img = image.resize((width, height)).convert('L')  # convert to grayscale
 
-        # Grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        arr = np.asarray(img).astype(np.float32) / 255.0
 
-        # Threshold
-        _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+        mean = self.metadata["normalization"]["mean"][0]
+        std = self.metadata["normalization"]["std"][0]
+        arr = (arr - mean) / std
 
-        # Remove small noise
-        kernel = np.ones((2, 2), np.uint8)
-        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        # Shape: [1, C, H, W]
+        if channels == 1:
+            arr = arr[np.newaxis, np.newaxis, :, :]
+        else:
+            arr = np.repeat(arr[np.newaxis, :, :], channels, axis=0)
+            arr = arr[np.newaxis, :, :, :]
 
-        # Encode back to bytes
-        is_success, buffer = cv2.imencode(".jpg", opening)
-        if not is_success:
-            raise ValueError("Failed to encode processed captcha image.")
-
-        return io.BytesIO(buffer).getvalue()
+        return arr
 
     def solve(self, captcha_json):
-        # Extract base64 image string
-        img_data = captcha_json["data"]["img"]
+        image_data = captcha_json["data"]["img"]
+        base64_str = image_data.split(",")[1]
 
-        # Remove prefix like data:image/jpeg;base64,
-        base64_str = img_data.split(",")[1]
-
-        # Decode base64 to bytes
         raw_bytes = base64.b64decode(base64_str)
+        image = Image.open(io.BytesIO(raw_bytes))
 
-        # Preprocess before OCR
-        processed_bytes = self.preprocess_captcha(raw_bytes)
+        arr = self.preprocess_image(image)
 
-        # OCR
-        result = self.ocr.classification(processed_bytes)
+        input_name = self.session.get_inputs()[0].name
+        outputs = self.session.run(None, {input_name: arr})
 
-        captcha_id = record_captcha(result, raw_bytes)
+        predicted_text = ""
+        confidences = []
 
-        return result, captcha_id
+        idx_to_char = self.metadata["idx_to_char"]
+        output_positions = self.metadata["output_positions"]
+
+        for pos in range(output_positions):
+            probs = outputs[pos]
+            probs = np.squeeze(probs)
+
+            max_idx = int(np.argmax(probs))
+            max_prob = float(probs[max_idx])
+
+            predicted_text += idx_to_char[str(max_idx)]
+            confidences.append(max_prob)
         
+        captcha_id = record_captcha(predicted_text, raw_bytes)
+
+        return predicted_text, captcha_id
+
+
+def main():
+    solver = CaptchaSolver()
+    result = solver.solve("captcha.png")
+    print(result)
+
+
+if __name__ == "__main__":
+    main()

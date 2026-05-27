@@ -19,3 +19,6 @@ test.py
 *.db-journal
 *.sqlite-journal
 *.sqlite3-journal
+
+
+new_test.ipynb
