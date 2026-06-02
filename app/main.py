@@ -2,7 +2,9 @@ import logging
 from time import time
 from datetime import datetime
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.lifespan import lifespan
+from app.core.config import settings
 from app.api.routers import health, players, giftcodes, redemptions, tasks
 
 logging.basicConfig(level=logging.INFO)
@@ -13,6 +15,15 @@ app = FastAPI(
     description="API for managing players, fetching gift codes, and redeeming them.",
     version="2.2.0",
     lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.middleware("http")
