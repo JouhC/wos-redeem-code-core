@@ -4,7 +4,7 @@ import io
 import json
 import numpy as np
 import onnxruntime as ort
-from app.db.database import record_captcha
+from app.db.supabase import record_captcha
 
 
 MODEL_PATH = "app/model/captcha_model.onnx"

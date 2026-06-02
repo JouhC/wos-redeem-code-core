@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.api.dependencies import require_ready
-from app.db.database import get_giftcodes, add_giftcode, deactivate_giftcode
+from app.db.supabase import get_giftcodes, add_giftcode, deactivate_giftcode
 from app.utils.fetch_gc_async import fetch_latest_codes_async
-from app.utils.rclone import backup_db
 
 router = APIRouter(prefix="/giftcodes", tags=["giftcodes"], dependencies=[Depends(require_ready)])
 
@@ -14,12 +13,12 @@ async def list_giftcodes():
 async def fetch_giftcodes():
     fetched = await fetch_latest_codes_async("whiteoutsurvival", "gift code")
     new_codes = [c for c in (add_giftcode(code) for code in fetched) if c]
-    return {"message": "Gift codes fetched.", "new_codes": new_codes, "backup": backup_db()}
+    return {"message": "Gift codes fetched.", "new_codes": new_codes}
 
 @router.post("/deactivate")
 async def set_inactive(payload: dict):
     try:
         msg = deactivate_giftcode(payload["code"])
-        return {"message": msg, "backup": backup_db()}
+        return {"message": msg}
     except Exception as e:
         raise HTTPException(400, str(e))

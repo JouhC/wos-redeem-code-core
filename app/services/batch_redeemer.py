@@ -1,11 +1,10 @@
-from app.db.database import (
+from app.db.supabase import (
     init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked, deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list,
     record_captcha, update_captcha_feedback, update_giftcode_checkedtime
 )
 from app.utils.captcha_solver import CaptchaSolver
 from app.utils.fetch_gc_async import fetch_latest_codes_async
-from app.utils.rclone import backup_db
 from app.utils.wos_api import PlayerAPI
 from app.core.config import settings
 from collections import defaultdict
@@ -260,7 +259,6 @@ async def _main_logic(task_results: dict, task_id: str, progress_cb, salt: str, 
     # flush cache from previous run (if any)
     if os.path.exists(CACHE_DIR):
         process_cache()
-        backup_db()
         clear_cache()
 
     players = get_players()
@@ -351,5 +349,4 @@ async def main(task_results: dict, task_id: str, salt: str, default_player: str 
             player_api = None
         if os.path.exists(CACHE_DIR):
             process_cache()
-            backup_db()
             clear_cache()

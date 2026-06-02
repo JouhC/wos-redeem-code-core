@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     SALT: str
     DEFAULT_PLAYER: str | None = None
-    DB_FILE: str
+    DATABASE_URL: str
     RENDER: bool = False
     ERROR_CODES_FILE: str = "app/error_codes.json"
     PRIORITY_ACCOUNT: str
