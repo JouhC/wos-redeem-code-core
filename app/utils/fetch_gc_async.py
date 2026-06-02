@@ -46,7 +46,6 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
             post_count += 1
             if submission.is_self:
                 code = extract_code(submission.selftext)
-                logger.info("Text %s | Extracted Code: %s", submission.selftext[:100], code)
                 if code:
                     codes.append(code)
         return codes
