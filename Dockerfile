@@ -17,18 +17,8 @@ COPY . /app
 # Install dependencies with uv
 RUN uv sync --frozen --no-dev
 
-# Install SQLite3 and rclone
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    sqlite3 curl && \
-    curl https://rclone.org/install.sh | bash && \
-    rm -rf /var/lib/apt/lists/*
-
 # Expose the port FastAPI will use
 EXPOSE 8000
 
-# Install a process manager (supervisord) to run uvicorn
-RUN uv add supervisor
-COPY supervisord.conf /etc/supervisord.conf
-
-# Start supervisord
-CMD ["uv", "run", "supervisord", "-c", "/etc/supervisord.conf"]
+# Start FastAPI
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

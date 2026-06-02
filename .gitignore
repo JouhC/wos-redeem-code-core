@@ -22,3 +22,5 @@ test.py
 
 
 new_test.ipynb
+*.csv
+*.ipynb

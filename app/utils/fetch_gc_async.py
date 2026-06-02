@@ -18,7 +18,7 @@ if not all([CLIENT_ID, CLIENT_SECRET, USER_AGENT]):
 
 def extract_code(post_text):
     """Extract the code from post text using regex."""
-    match = re.search(r'Code:\s*(\S+)', post_text, re.IGNORECASE)
+    match = re.search(r'(?i)(?:\*\*code:\*\*|gift\s+code:)\s*`?([^\s`]+)`?', post_text, re.IGNORECASE)
     return match.group(1) if match else None
 
 async def fetch_latest_codes_async(subreddit_name, keyword):
@@ -46,6 +46,7 @@ async def fetch_latest_codes_async(subreddit_name, keyword):
             post_count += 1
             if submission.is_self:
                 code = extract_code(submission.selftext)
+                logger.info("Text %s | Extracted Code: %s", submission.selftext[:100], code)
                 if code:
                     codes.append(code)
         return codes
