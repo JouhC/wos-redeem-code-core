@@ -106,9 +106,9 @@ jobs:
 
           echo "⏳ Progress: $PROGRESS% - Status: $STATUS"
 
-          if [ "$STATUS" == "Completed" ] || [ "$STATUS" == "Failed" ]; then
-            echo "✅ Task finished with status: $STATUS"
-            break
+          if [ "$STATUS" == "Completed" ] || [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Timeout" ]; then
+          echo "✅ Task finished with status: $STATUS"
+          break
           fi
 
           sleep 5  # Poll every 5 seconds
