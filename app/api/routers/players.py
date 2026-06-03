@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from app.api.dependencies import require_ready
 from app.schemas.players import Player
 from app.db.supabase import get_players, add_player, remove_player, update_player
@@ -36,6 +36,12 @@ async def update_player_profile(player: Player):
         if api: await api.close_session()
 
 @router.post("/remove")
-async def remove_player_db(player: Player):
+async def remove_player_db(
+    player: Player,
+    x_admin_password: str = Header(...)
+):
+    if x_admin_password != settings.ADMIN_ACTION_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
     resp = remove_player(player.player_id)
     return {"response": resp}

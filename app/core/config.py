@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost",
     ]
+    ADMIN_ACTION_PASSWORD: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
