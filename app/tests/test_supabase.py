@@ -95,6 +95,24 @@ class SupabaseTests(unittest.TestCase):
         self.assertIs(params["subscribed_date"], now)
         self.assertIsNotNone(params["subscribed_date"].tzinfo)
 
+    def test_update_player_normalizes_numeric_fid(self):
+        cursor = FakeCursor()
+        player = {
+            "fid": 12345,
+            "nickname": "Tester",
+            "kid": 1,
+            "stove_lv": 2,
+            "stove_lv_content": "2",
+            "avatar_image": "avatar.png",
+            "total_recharge_amount": 0,
+        }
+
+        with patch_connect(cursor):
+            supabase.update_player(player)
+
+        _, params = cursor.executions[-1]
+        self.assertEqual(params["fid"], "12345")
+
     def test_add_giftcode_uses_database_current_timestamp(self):
         cursor = FakeCursor(fetchone_results=[("CODE1",)])
 
