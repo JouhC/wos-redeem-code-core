@@ -129,6 +129,18 @@ class SupabaseTests(unittest.TestCase):
         self.assertEqual(params, (now, "CODE1"))
         self.assertIsNotNone(params[0].tzinfo)
 
+    def test_get_giftcodes_unchecked_skips_recent_default_player_redemptions(self):
+        cursor = FakeCursor(fetchall_result=[("CODE1",), ("CODE2",)])
+
+        with patch_connect(cursor):
+            codes = supabase.get_giftcodes_unchecked("286136250")
+
+        query, params = cursor.executions[-1]
+        self.assertEqual(codes, ["CODE1", "CODE2"])
+        self.assertEqual(params, ["286136250"])
+        self.assertIn("NOT EXISTS", query)
+        self.assertIn("redeemed_date >= CURRENT_TIMESTAMP - INTERVAL '1 day'", query)
+
     def test_get_unredeemed_query_uses_redeemed_date_column(self):
         cursor = FakeCursor(fetchall_result=[{"fid": "player-1", "code": "CODE1"}])
 
