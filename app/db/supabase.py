@@ -28,6 +28,18 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def _normalize_player_id(player_id):
+    if player_id is None:
+        return player_id
+    return str(player_id)
+
+
+def _normalize_player_data(player_data):
+    if 'fid' in player_data:
+        player_data['fid'] = _normalize_player_id(player_data['fid'])
+    return player_data
+
+
 def _ensure_timestamp_column(cursor, table_name, column_name, default_sql=None):
     cursor.execute("""
         SELECT data_type
@@ -121,6 +133,7 @@ def init_db():
 def add_player(player_data):
     """Add a new player to the database."""
     try:
+        player_data = _normalize_player_data(player_data)
         with _connect() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -153,6 +166,7 @@ def add_player(player_data):
 def update_player(player_data):
     """Update a player in the database."""
     try:
+        player_data = _normalize_player_data(player_data)
         with _connect() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -172,6 +186,7 @@ def update_player(player_data):
 
 def remove_player(fid):
     """Removes a player from the database."""
+    fid = _normalize_player_id(fid)
     response = f"Player '{fid}' not found in the database."
     try:
         with _connect() as conn:
@@ -346,6 +361,7 @@ def deactivate_giftcode(code):
 
 def record_redemption(player_id, code):
     """Record a gift code redemption for a player."""
+    player_id = _normalize_player_id(player_id)
     with _connect() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
@@ -357,6 +373,7 @@ def record_redemption(player_id, code):
 
 def get_redeemed_codes(player_id):
     """Get all redeemed codes for a player."""
+    player_id = _normalize_player_id(player_id)
     with _connect() as conn:
         with conn.cursor() as cursor:
             cursor.execute("SELECT code FROM redemptions WHERE player_id = %s", (player_id,))
@@ -370,6 +387,7 @@ def update_players_table(player_data_list):
         with _connect() as conn:
             with conn.cursor() as cursor:
                 for player_data in player_data_list:
+                    player_data = _normalize_player_data(player_data)
                     cursor.execute("""
                         UPDATE players
                         SET nickname = %(nickname)s,
