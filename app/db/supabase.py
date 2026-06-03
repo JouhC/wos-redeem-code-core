@@ -288,16 +288,34 @@ def get_giftcodes():
     return codes
 
 
-def get_giftcodes_unchecked():
-    """Retrieve all gift codes that have not been checked in the last 24 hours."""
+def get_giftcodes_unchecked(default_player: str | None = None):
+    """Retrieve all gift codes that have not been checked in the last 24 hours.
+
+    If a default player is supplied, also skip codes that player has redeemed
+    in the last 24 hours.
+    """
     with _connect() as conn:
         with conn.cursor() as cursor:
-            cursor.execute("""
+            query = """
                 SELECT code
                 FROM giftcodes
                 WHERE status = 'Active'
                 AND last_checked <= CURRENT_TIMESTAMP - INTERVAL '1 day'
-            """)
+            """
+            params = []
+
+            if default_player:
+                query += """
+                    AND NOT EXISTS (
+                        SELECT 1 FROM redemptions r
+                        WHERE r.code = giftcodes.code
+                          AND r.player_id = %s
+                          AND r.redeemed_date >= CURRENT_TIMESTAMP - INTERVAL '1 day'
+                    )
+                """
+                params = [default_player]
+
+            cursor.execute(query, params)
             codes = [row[0] for row in cursor.fetchall()]
     return codes
 

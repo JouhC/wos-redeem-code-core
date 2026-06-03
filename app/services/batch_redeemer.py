@@ -1,5 +1,6 @@
 from app.db.supabase import (
-    init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked, deactivate_giftcode,
+    init_db, add_player, get_players, add_giftcode, get_giftcodes, get_giftcodes_unchecked,
+    deactivate_giftcode,
     record_redemption, get_redeemed_codes, update_players_table, update_player, get_unredeemed_code_player_list,
     record_captcha, update_captcha_feedback, update_giftcode_checkedtime
 )
@@ -236,7 +237,7 @@ async def _run_default_player(progress_cb, default_player: str = None, n: int = 
         logger.info("No default player provided. Skipping default player run.")
         return []
 
-    codes = get_giftcodes_unchecked() or []
+    codes = get_giftcodes_unchecked(default_player) or []
     if not codes:
         logger.info("No unchecked giftcodes for default player.")
         return []
