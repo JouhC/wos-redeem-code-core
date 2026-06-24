@@ -91,4 +91,4 @@ Open issues or PRs with focused changes. For large changes, open an issue first 
 ## License
 This project is released under the MIT License — see [LICENSE](LICENSE) for details.
 
-_Updated 2026-06-03_
+_Updated 2026-06-25_
