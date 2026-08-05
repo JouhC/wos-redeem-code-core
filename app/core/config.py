@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -12,6 +13,7 @@ class Settings(BaseSettings):
         "http://localhost",
     ]
     ADMIN_ACTION_PASSWORD: str
+    GIFT_CODE_URLS: list[str] = Field(default_factory=list)
 
     model_config = SettingsConfigDict(
         env_file=".env",
